@@ -1,6 +1,6 @@
 package com.csc3665.project1.controller;
 
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,6 +22,13 @@ public class ApiController {
     @GetMapping("/auth/login")
     public boolean login(String user, String pass) {
         return dbService.login(user, pass);
+    }
+
+    public record ChangePasswordRequest(int eid, String newPassword) {}
+
+    @PostMapping("/auth/changePassword")
+    public void changePassword(@RequestBody ChangePasswordRequest request) {
+        dbService.changePassword(request.eid(), request.newPassword());
     }
 }
 

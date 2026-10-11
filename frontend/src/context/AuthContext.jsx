@@ -21,21 +21,41 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
 
   const login = async (username, password) => {
-    // TODO: replace with → POST /api/auth/login  { username, password }
-    //       expect: { id, name, role, isFirstLogin, token }
-    const found = MOCK_USERS.find(u => u.username === username && u.password === password)
-    if (!found) throw new Error('Invalid username or password.')
-    setUser({ ...found })
-    return found
+    const params = new URLSearchParams({
+      user: username,
+      pass: password,
+    })
+
+    const response = await fetch(`/api/auth/login?${params}`)
+
+    if (!response.ok) {
+      throw new Error('Invalid username or password.')
+    }
+
+    const employee = await response.json()
+    setUser(employee)
+    return employee
   }
 
   const logout = () => {
-    // TODO: POST /api/auth/logout
     setUser(null)
   }
 
   const changePassword = async (newPassword) => {
-    // TODO: POST /api/auth/change-password  { newPassword }
+    const response = await fetch('/api/auth/changePassword', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        eid: user.id,
+        newPassword: newPassword,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to change password.')
+    }
     setUser(prev => ({ ...prev, isFirstLogin: false }))
   }
 
