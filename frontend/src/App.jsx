@@ -8,6 +8,8 @@ import RequestsPage from './pages/staff/RequestsPage'
 import Layout from './components/Layout'
 
 function RequireAuth({ children, roles }) {
+  // TODO: Block access to admin pages until isFirstLogin is false, including direct URLs;
+  // allow the password-change route during this gate and enforce it server-side too.
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
   if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />

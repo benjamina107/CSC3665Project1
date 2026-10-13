@@ -1,0 +1,64 @@
+Remaining Project 1 functionality and deliverables
+Source: Project 1.docx (1).pdf and gugu.sql supplied by the user.
+This is a checklist, not an implementation. Proposed API names are not requirements.
+
+SCHEMA AND SETUP
+TODO: Keep a versioned SQL setup file in this project with all CREATE TABLE commands,
+      including employees.first_login (the user's addition; existing Java uses that name).
+TODO: Seed 10 doctors, 20 technicians, and an admin account with login/password admin/admin
+      and first_login=true. Admin privileges come from is_admin, not etype='admin', which
+      violates the current CHECK. Document how the admin fits the employee role constraint.
+TODO: Fix shift identity before generating schedules: PRIMARY KEY(block, sdate) cannot
+      hold both regular Early Morning and surgery on the same date. Surgery is a boolean,
+      not an allowed block. Choose a shift ID or expand the composite key, and update
+      working/work_requests foreign keys and joins consistently. Prevent duplicate
+      employee/shift assignments with an appropriate working key/unique constraint.
+TODO: Store a denial reason for requests if history must retain explanations; approved
+      alone cannot store the reason or distinguish pending from denied. Immediate final
+      decisions can use approved=true/false. Add status only if pending is supported.
+TODO: Decide whether to persist optional UI notes (no column exists; notes are not required).
+TODO: Define annual PTO accounting: derive calendar-year usage from approved PTO dates,
+      or track balances by year. The current employee counters have no associated year.
+TODO: Enforce unique employee usernames and valid request date ranges in setup/validation.
+
+IMPLEMENTATION ORDER
+TODO: Repair auth/API contracts and replace JdbcTemplate with direct JDBC prepared SQL
+      as required by the assignment. See DBService.java and ApiController.java TODOs.
+TODO: Complete admin-only staff listing, account creation/removal, password setting, and
+      enforce the admin's first-login password change on both frontend and backend.
+TODO: Build schedule generation using the coverage, rest, weekly limits, extra-doctor
+      priorities, and technician distribution rules listed in DBService.java.
+TODO: Serve real two-week schedules, surgery highlighting, and coworkers from the database.
+TODO: Implement both work preferences and time-off requests with immediate decisions,
+      first-come-first-served conflict handling, explanatory denials, and schedule updates.
+TODO: Show real calendar-year vacation/sick usage and request history instead of mock data.
+
+ASSUMPTIONS TO RESOLVE WITH THE CLIENT
+TODO: Document what "typically four shifts" allows during PTO or staffing shortages,
+      which weekday starts a scheduling week, and how far ahead schedules are generated.
+TODO: Define fair technician distribution and assignment of individual coworkers when
+      multiple doctors/technicians share a shift (working has no explicit pairing field).
+TODO: Confirm that two Sunday technicians means daytime; the general overnight rule says
+      exactly one technician overnight. Document these interpretations in Assumptions.
+TODO: Define whether PTO counts calendar days or scheduled workdays, how past sick requests
+      affect historical schedules, and handling of ranges crossing calendar years.
+TODO: Confirm handling of staff deletion/history, admin etype, and optional staff
+      first-login/password-reset behavior. Only the admin's first-login change is explicitly
+      required by the assignment; the UI currently promises this for staff as well.
+
+VERIFICATION WHEN IMPLEMENTED
+TODO: Verify admin-only mutations and first-login URL bypass prevention with real accounts.
+TODO: Verify complete shift coverage, surgery identity, 10-hour breaks across overnight/week
+      boundaries, doctor weekly limits, extra-doctor priorities, and technician staffing.
+TODO: Verify work-request conflicts, PTO exhaustion, 21-day notice boundary, sick-today
+      rejection, cross-year usage, and concurrent first-come-first-served requests.
+TODO: Verify granted requests rearrange schedules without invalidating earlier approvals;
+      denied requests leave assignments/balances unchanged and return a concrete reason.
+
+REQUIRED SUBMISSION FILES
+TODO: Write UserManual with setup/use instructions and initial logins/passwords.
+TODO: Write LogFile recording who did what and actual time spent (do not invent entries).
+TODO: Write Assumptions and record client clarification of ambiguous requirements.
+TODO: Create an ER diagram reflecting the final schema and its first_login/key changes.
+TODO: Include all CREATE TABLE commands generated from the final ER diagram.
+TODO: Package the completed project and required files as a ZIP for the team's submission.
