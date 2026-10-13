@@ -116,7 +116,32 @@ function AddStaffPanel({ role, onClose, onAdd }) {
     setError('')
     if (!name || !username || !password) { setError('All fields are required.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
-    // TODO: POST /api/admin/staff  { name, username, password, role }
+
+    const addStaffMember = async () => {
+      const response = await fetch('/api/admin/staff', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, username, password, role }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        setError(errorData.message || 'Failed to add staff member.')
+        return
+      }
+
+      const newStaffMember = await response.json()
+      onAdd(newStaffMember)
+      setSuccess(true)
+      setTimeout(() => { setSuccess(false); setName(''); setUsername(''); setPassword('') }, 2000)
+    }
+
+
+
+
+
     onAdd({ id: Date.now(), name, username, lastLogin: 'Never' })
     setSuccess(true)
     setTimeout(() => { setSuccess(false); setName(''); setUsername(''); setPassword('') }, 2000)

@@ -45,4 +45,17 @@ public class DBService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found.");
         }
     }
+
+    public void addStaff(String name, String username, String password, String role) {
+        int updated = jdbc.update(
+            "INSERT INTO employees (ename, euser, epass, etype) VALUES (?, ?, ?, ?)",
+            name,
+            username,
+            password,
+            role
+        );
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to add staff.");
+        }
+    }
 }
