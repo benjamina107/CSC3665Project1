@@ -30,6 +30,11 @@ public class ApiController {
     public void changePassword(@RequestBody ChangePasswordRequest request) {
         dbService.changePassword(request.eid(), request.newPassword());
     }
+
+    @PostMapping("/admin/staff")
+    public void addStaff(@RequestBody StaffRequest request) {
+        dbService.addStaff(request.name(), request.username(), request.password(), request.role());
+    }
 }
 
 
