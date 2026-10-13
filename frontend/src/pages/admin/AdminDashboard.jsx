@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { Plus, Trash2, KeyRound, Users, Stethoscope, X, AlertCircle, CheckCircle2 } from 'lucide-react'
 
+// TODO: Load real employees through GET /api/admin/staff; split doctors/technicians by
+// normalized etype and derive counts from those rows. Show loading/errors/empty states.
+// TODO: Remove or replace Last Login: the supplied schema has no last-login column,
+// and the project does not require this field. first_login is a different flag.
+
 // ─── Mock data (remove when backend is ready) ─────────────────────────────────
 const INITIAL_DOCTORS = [
   { id: 1,  name: 'Dr. Jane Smith',       username: 'dr.smith',    lastLogin: 'Sep 15, 2026' },
@@ -118,6 +123,8 @@ function AddStaffPanel({ role, onClose, onAdd }) {
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
 
     const addStaffMember = async () => {
+      // TODO: Actually await/call this helper from handleSubmit, handle network errors,
+      // and remove the mock onAdd/success calls below so staff is added only once on success.
       const response = await fetch('/api/admin/staff', {
         method: 'POST',
         headers: {
@@ -265,6 +272,8 @@ export default function AdminDashboard() {
 
   const handleResetPassword = () => {
     // TODO: POST /api/admin/staff/:id/reset-password
+    // TODO: Collect the password the admin wants to set and send confirmAction.person.id;
+    // report success/failure from the backend before closing the modal.
     setConfirmAction(null)
   }
 

@@ -2,6 +2,13 @@ import { useState } from 'react'
 import { Umbrella, Thermometer, CheckCircle2, XCircle, Clock, AlertCircle, CalendarDays, Info } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
+// TODO: Replace MOCK_INITIAL with GET /api/requests/my: current-year PTO usage plus
+// history from requests joined to pto_requests/work_requests for the logged-in employee.
+// TODO: Add work-date/shift requests, selecting real shifts (sdate + full shift key)
+// and sending them to POST /api/requests; show these alongside PTO in history.
+// TODO: Map UI 'Sick Day' to pto_requests.reason='Sick'; Vacation already matches.
+// The schema has no note/denial-reason columns: decide storage before promising persistence.
+
 // ─── Mock time-off data (replace with GET /api/requests/my) ──────────────────
 const MOCK_INITIAL = {
   vacation: { used: 2, total: 8 },
@@ -16,6 +23,8 @@ const MOCK_INITIAL = {
 
 // Minimum advance notice: vacation = 21 days, sick = tomorrow (not today)
 function validateRequest(type, startDateStr, endDateStr, balance) {
+  // TODO: Use the actual current date; leave authoritative policy/availability checks
+  // to the server. Apply the no-today sick rule to every date in the selected range.
   const today = new Date('2026-09-15')
   const start = new Date(startDateStr)
   const end   = new Date(endDateStr)
@@ -113,6 +122,8 @@ export default function RequestsPage() {
   const balance = reqType === 'Vacation' ? data.vacation : data.sick
 
   const handleSubmit = (e) => {
+    // TODO: Await the backend decision rather than auto-approving; show its denial reason,
+    // then reload balances/history and schedule on approval. Handle loading/network errors.
     e.preventDefault()
     setResult(null)
 
