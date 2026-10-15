@@ -44,7 +44,7 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-900 via-teal-800 to-teal-700 flex items-center justify-center p-6">
+    <div className="auth-gradient min-h-screen flex items-center justify-center p-6">
       {/* Card */}
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
         {/* Header strip */}

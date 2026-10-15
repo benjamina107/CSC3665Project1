@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
 import ChangePasswordPage from './pages/admin/ChangePasswordPage'
@@ -13,7 +13,7 @@ function RequireAuth({ children, roles }) {
 
   if (!user) return <Navigate to="/login" replace />
 
-  if (user.isFirstLogin && pathname !== '/change-password') {
+  if (user.isFirstLogin && user.is_admin && pathname !== '/change-password') {
     return <Navigate to="/change-password" replace />
   }
 
@@ -28,7 +28,7 @@ function RootRedirect() {
   const { user } = useAuth()
 
   if (!user) return <Navigate to="/login" replace />
-  if (user.isFirstLogin) {
+  if (user.isFirstLogin && user.is_admin) {
     return <Navigate to="/change-password" replace />
   }
 

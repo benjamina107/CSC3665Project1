@@ -34,12 +34,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-teal-900 via-teal-800 to-teal-700 flex-col justify-between p-12 relative overflow-hidden">
-        {/* Decorative circles */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-teal-600 opacity-20" />
-        <div className="absolute -bottom-32 -right-16 w-80 h-80 rounded-full bg-teal-500 opacity-15" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-teal-600 opacity-10" />
-
+      <div className="auth-gradient hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden">
         {/* Logo */}
         <div className="relative flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center">
@@ -58,15 +53,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Stats row */}
-        <div className="relative flex gap-8">
-          {[['10', 'Doctors'], ['20', 'Technicians'], ['24/7', 'Coverage']].map(([val, label]) => (
-            <div key={label}>
-              <p className="text-white text-2xl font-bold">{val}</p>
-              <p className="text-teal-300 text-sm">{label}</p>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Right panel — login form */}
@@ -132,16 +118,6 @@ export default function LoginPage() {
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
-
-          {/* Demo credentials hint */}
-          <div className="mt-8 p-4 bg-teal-50 border border-teal-100 rounded-xl">
-            <p className="text-xs font-semibold text-teal-800 mb-2">Demo credentials</p>
-            <div className="space-y-1 text-xs text-teal-700">
-              <p><span className="font-medium">Admin:</span> admin / admin</p>
-              <p><span className="font-medium">Doctor:</span> dr.smith / password123</p>
-              <p><span className="font-medium">Technician:</span> tech.johnson / password123</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
