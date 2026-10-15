@@ -14,11 +14,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class DBService {
-    // TODO (p.1): Provide admin/admin and force the admin's first-login password change.
-    // TODO (p.1): Let only the admin create/remove staff and set their passwords.
+    // TODO (p.1): Initialize a database-backed admin/admin account with first_login=true.
     // Implementation notes: use is_admin for the admin role; etype must satisfy the CHECK.
-    // Staff listing can use employees WHERE is_admin=false. Related working/requests rows
-    // must be handled when removing an employee because of their foreign keys.
 
     // TODO (p.1): Schedule typically four shifts/employee/week, with at least 10 hours
     // between shifts; no doctor has two surgery days or two overnight shifts in a week.
@@ -121,6 +118,36 @@ public class DBService {
         }
     }
 
+    public void setStaffPassword(int eid, String newPassword) {
+        String sql = """
+            UPDATE employees
+            SET epass = ?, first_login = true
+            WHERE eid = ? AND LOWER(etype) IN ('doctor', 'technician')
+            """;
+        
+        try (
+            Connection connection = dataSource.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, newPassword);
+            statement.setInt(2, eid);
+
+            int updatedRows = statement.executeUpdate();
+            if (updatedRows == 0) {
+                throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Employee not found."
+                );
+            }
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to change password due to a database error.",
+                e
+            );
+        }
+    }
+
     public int addStaff(String name, String username, String password, String role) {
         if ("doctor".equalsIgnoreCase(role)) {
             role = "Doctor";
@@ -132,8 +159,6 @@ public class DBService {
                 "Role must be doctor or technician."
             );
         }
-        // TODO (p.1): Complete the administrator's create-doctor/technician operation.
-        // Implementation: match Doctor/Technician in the schema and supply the UI's employee ID.
         String sql = "INSERT INTO employees (ename, euser, epass, etype) VALUES (?, ?, ?, ?)";
 
         try (
@@ -204,5 +229,31 @@ public class DBService {
             );
         }
     }
+
+    public void removeStaff(int eid) {
+    String sql = """
+        DELETE FROM employees
+        WHERE eid = ? AND LOWER(etype) IN ('doctor', 'technician')
+        """;
+
+    try (
+        Connection connection = dataSource.getConnection();
+        PreparedStatement statement = connection.prepareStatement(sql)
+    ) {
+        statement.setInt(1, eid);
+
+        if (statement.executeUpdate() == 0) {
+            throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "Staff member not found."
+            );
+        }
+    } catch (SQLException e) {
+        throw new ResponseStatusException(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "Unable to remove staff.",
+            e
+        );
+    }
+}
 }
 

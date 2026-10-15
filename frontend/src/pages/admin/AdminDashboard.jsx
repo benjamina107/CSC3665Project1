@@ -1,13 +1,5 @@
 import { useState,useEffect } from 'react'
 import { Plus, Trash2, KeyRound, Users, Stethoscope, X, AlertCircle, CheckCircle2 } from 'lucide-react'
-import java.util.List;
-
-// TODO (p.1): Connect admin staff creation/removal/password setting to the database.
-// Implementation note: load staff from employees to select accounts for these operations;
-// the assignment does not require counts or a specific listing endpoint.
-// Last Login is optional display-only mock data, not an assignment requirement.
-
-
 
 function StatCard({ icon: Icon, value, label, color }) {
   return (
@@ -191,6 +183,17 @@ function AddStaffPanel({ role, onClose, onAdd }) {
 }
 
 function ConfirmModal({ person, action, onConfirm, onCancel }) {
+  const [newPassword, setNewPassword] = useState('')
+  const [error, setError] = useState('')
+
+  const handleConfirm = () => {
+    if (!isRemove && newPassword.length < 6) {
+      setError('Password must be at least 6 characters.')
+      return
+    }
+
+    onConfirm(newPassword)
+  }
   const isRemove = action === 'remove'
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -208,11 +211,22 @@ function ConfirmModal({ person, action, onConfirm, onCancel }) {
             : `Reset password for ${person.name}? They will be required to set a new password on next login.`}
         </p>
         <div className="flex gap-3">
+          {!isRemove && (
+            <input
+              type="password"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              placeholder="New temporary password"
+              className="w-full border rounded-lg px-3 py-2 mb-4"
+            />
+          )}
+
+          {error && <p className="text-red-600 mb-4">{error}</p>}
           <button onClick={onCancel} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">
             Cancel
           </button>
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
             className={`flex-1 px-4 py-2.5 rounded-xl text-white text-sm font-medium shadow-sm ${isRemove ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
             {isRemove ? 'Remove' : 'Reset'}
@@ -229,6 +243,9 @@ export default function AdminDashboard() {
   const [technicians, setTechnicians] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [showAddPanel, setShowAddPanel] = useState(false)
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [actionError, setActionError] = useState('')
   
 
   const currentList = activeTab === 'doctors' ? doctors : technicians
@@ -238,16 +255,47 @@ export default function AdminDashboard() {
     setCurrentList(prev => [...prev, person])
   }
 
-  const handleRemove = (person) => {
-    // TODO (p.1): Remove the selected staff account from the database.
-    setCurrentList(prev => prev.filter(p => p.id !== person.id))
-    setConfirmAction(null)
+  const handleRemove = async (person) => {
+    setActionError('')
+
+    try {
+      const response = await fetch(`/api/admin/staff/${person.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to remove staff member.')
+      }
+
+      setDoctors(prev => prev.filter(p => p.id !== person.id))
+      setTechnicians(prev => prev.filter(p => p.id !== person.id))
+      setConfirmAction(null)
+    } catch (err) {
+      setActionError(err.message)
+    }
   }
 
-  const handleResetPassword = () => {
-    // TODO (p.1): Let the administrator set the selected staff member's password.
-    // Implementation: collect the password and send the selected employee ID to the backend.
-    setConfirmAction(null)
+  const handleResetPassword = async (newPassword) => {
+    setActionError('')
+
+    try {
+      const response = await fetch(
+        `/api/admin/staff/${confirmAction.person.id}/password`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newPassword }),
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to set password.')
+      }
+
+      setConfirmAction(null)
+    } catch (err) {
+      setActionError(err.message)
+    }
   }
 
   useEffect(() => {
@@ -298,6 +346,9 @@ export default function AdminDashboard() {
         <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
         <p className="text-gray-500 text-sm mt-1">Manage clinic doctors and technicians</p>
       </div>
+      {actionError && (
+        <p className="mb-4 text-red-600">{actionError}</p>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">

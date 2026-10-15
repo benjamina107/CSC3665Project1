@@ -1,15 +1,17 @@
-Project 1 - assignment requirements only
+Project 1 - remaining assignment work
 Source: supplied Project 1.docx (1).pdf, pages 1-2.
-These TODOs describe required behavior, not prescribed API names or schema designs.
+These TODOs describe remaining required behavior and known implementation gaps.
 The document does not prescribe auth tokens or server sessions.
 
 LOGIN AND ADMINISTRATION (page 1)
-TODO: Allow each doctor and technician to log in.
 TODO: Support the clinic's 10 doctors and 20 technicians.
-TODO: Provide a system administrator with initial login admin and password admin.
-TODO: Force the administrator to change their password on first login.
-TODO: Allow only the administrator to create/remove doctors and technicians and set
-      their passwords.
+TODO: Provide a database-backed system administrator with initial login admin and
+      password admin; the unused mock account and UI hint do not initialize the database.
+TODO: Finish the first-login password-change flow: import useLocation in App.jsx and
+      match the login redirect to the existing /change-password route.
+      Password persistence and clearing first_login are already implemented.
+TODO: Remove the invalid Java import (import java.util.List;) from AdminDashboard.jsx
+      so the implemented staff management UI can compile.
 
 SCHEDULING (page 1)
 TODO: Schedule employees for typically four shifts each week, with at least 10 hours
@@ -38,9 +40,6 @@ TODO: Process requests first-come, first-served. Grant feasible requests and rea
 TODO: Immediately report whether a request is granted or denied and explain any denial.
 TODO: Require vacation requests at least three weeks in advance.
 TODO: Reject sick-day requests for today; the document allows any other day.
-
-DATABASE IMPLEMENTATION (page 2, React/Spring Boot option)
-TODO: Write the embedded SQL queries directly; do not use Spring Data JPA or JdbcTemplates.
 
 SUBMISSION (page 2)
 TODO: Write UserManual explaining use of the system, including initial logins/passwords.
