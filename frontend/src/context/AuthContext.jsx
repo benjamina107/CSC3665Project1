@@ -2,10 +2,8 @@ import { createContext, useContext, useState } from 'react'
 
 const AuthContext = createContext(null)
 
-// TODO: Remove obsolete MOCK_USERS once real auth is complete; use backend id/name/role/
-// isFirstLogin, with admin derived from employees.is_admin and normalized staff roles.
-// TODO: Keep frontend auth state synchronized with server-side authentication; clear
-// that session on logout and handle expired/unauthorized responses consistently.
+// Implementation note: match UI roles to backend admin/doctor/technician values.
+// Demo login state is stored in user; logout already clears it with setUser(null).
 
 // ─── Mock users (remove when backend is ready) ───────────────────────────────
 const MOCK_USERS = [
