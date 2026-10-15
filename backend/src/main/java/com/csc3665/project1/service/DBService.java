@@ -15,7 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class DBService {
     // TODO (p.1): Initialize a database-backed admin/admin account with first_login=true.
-    // Implementation notes: use is_admin for the admin role; etype must satisfy the CHECK.
+    // Implementation notes: use etype = 'Admin' for the admin role.
 
     // TODO (p.1): Schedule typically four shifts/employee/week, with at least 10 hours
     // between shifts; no doctor has two surgery days or two overnight shifts in a week.
@@ -53,7 +53,7 @@ public class DBService {
 
     public LoginResponse login(String username, String password) {
         String sql = """
-            SELECT eid, ename, etype, is_admin, first_login
+            SELECT eid, ename, etype, first_login
             FROM employees
             WHERE euser = ? AND epass = ?
             """;
@@ -79,7 +79,6 @@ public class DBService {
                     rs.getInt("eid"),
                     rs.getString("ename"),
                     role,
-                    rs.getBoolean("is_admin"),
                     rs.getBoolean("first_login")
                 );
             }
