@@ -4,6 +4,5 @@ public record LoginResponse(
     int id,
     String name,
     String role,
-    boolean admin,
     boolean isFirstLogin
 ) {}

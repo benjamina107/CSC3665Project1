@@ -20,7 +20,7 @@ export default function LoginPage() {
     try {
       const user = await login(username.trim(), password)
       if (user.role === 'admin') {
-        navigate(user.isFirstLogin ? '/admin/change-password' : '/admin')
+        navigate(user.isFirstLogin ? '/change-password' : '/admin')
       } else {
         navigate('/schedule')
       }

@@ -13,7 +13,7 @@ function RequireAuth({ children, roles }) {
 
   if (!user) return <Navigate to="/login" replace />
 
-  if (user.isFirstLogin && user.is_admin && pathname !== '/change-password') {
+  if (user.isFirstLogin && user.role === 'admin' && pathname !== '/change-password') {
     return <Navigate to="/change-password" replace />
   }
 
@@ -28,7 +28,7 @@ function RootRedirect() {
   const { user } = useAuth()
 
   if (!user) return <Navigate to="/login" replace />
-  if (user.isFirstLogin && user.is_admin) {
+  if (user.isFirstLogin && user.role === 'admin') {
     return <Navigate to="/change-password" replace />
   }
 
