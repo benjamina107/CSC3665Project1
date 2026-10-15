@@ -1,7 +1,8 @@
 package com.csc3665.project1.controller;
-import service.DBService;
-import dto.LoginResponse;
-import dto.StaffRequest;
+import com.csc3665.project1.service.DBService;
+import com.csc3665.project1.dto.LoginResponse;
+import com.csc3665.project1.dto.StaffRequest;
+import com.csc3665.project1.dto.StaffResponse;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,9 +44,14 @@ public class ApiController {
     // Implementation note: the dashboard needs the created employee ID; it can be returned
     // here or obtained by reloading staff. The assignment does not prescribe a response DTO.
     @PostMapping("/admin/staff")
-    public StaffRequest addStaff(@RequestBody StaffRequest request) {
-        dbService.addStaff(request.name(), request.username(), request.password(), request.role());
-        return request;
+    public StaffResponse addStaff(@RequestBody StaffRequest request) {
+        int id = dbService.addStaff(request.name(), request.username(), request.password(), request.role());
+        return new StaffResponse(id, request.name(), request.username(), request.role());
+    }
+
+    @GetMapping("/admin/staff")
+    public List<StaffResponse> getStaff() {
+        return dbService.getStaff();
     }
 }
 

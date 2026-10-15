@@ -1,23 +1,19 @@
 package com.csc3665.project1.service;
-
 import com.csc3665.project1.dto.LoginResponse;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import com.csc3665.project1.dto.StaffResponse;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class DBService {
-
-    // TODO (assignment p.2): Finish replacing jdbc.query/update with plain JDBC;
-    // the React/Spring Boot option disallows JdbcTemplates and Spring Data JPA.
-    // Implementation note: DataSource is already injected; methods still use old jdbc calls.
-    // Accounts use employees, including the user's added first_login column.
-
     // TODO (p.1): Provide admin/admin and force the admin's first-login password change.
     // TODO (p.1): Let only the admin create/remove staff and set their passwords.
     // Implementation notes: use is_admin for the admin role; etype must satisfy the CHECK.
@@ -56,50 +52,157 @@ public class DBService {
         this.dataSource = dataSource;
     }
 
+
+
     public LoginResponse login(String username, String password) {
-        // TODO (p.1): Support doctor, technician, and administrator logins.
-        // Implementation: map is_admin=true to admin; Doctor/Technician to lowercase UI roles.
-        List<LoginResponse> results = jdbc.query(
-            "SELECT eid, ename, etype, first_login FROM employees WHERE euser = ? AND epass = ?",
-            (rs, rowNum) -> new LoginResponse(
-                rs.getInt("eid"),
-                rs.getString("ename"),
-                rs.getString("etype"),
-                rs.getBoolean("first_login")
-            ),
-            username,
-            password
-        );
+        String sql = """
+            SELECT eid, ename, etype, is_admin, first_login
+            FROM employees
+            WHERE euser = ? AND epass = ?
+            """;
 
-        if (results.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password.");
+        try (
+            Connection connection = dataSource.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, username);
+            statement.setString(2, password);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) {
+                    throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Invalid username or password."
+                    );
+                }
+
+                String role = rs.getString("etype").toLowerCase(java.util.Locale.ROOT);
+
+                return new LoginResponse(
+                    rs.getInt("eid"),
+                    rs.getString("ename"),
+                    role,
+                    rs.getBoolean("is_admin"),
+                    rs.getBoolean("first_login")
+                );
+            }
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to log in due to a database error.",
+                e
+            );
         }
-        return results.get(0);
     }
-
+    
     public void changePassword(int eid, String newPassword) {
-        int updated = jdbc.update(
-            "UPDATE employees SET epass = ?, first_login = false WHERE eid = ?",
-            newPassword,
-            eid
-        );
-        if (updated == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found.");
+        String sql = "UPDATE employees SET epass = ?, first_login = false WHERE eid = ?";
+
+        try (
+            Connection connection = dataSource.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, newPassword);
+            statement.setInt(2, eid);
+
+            int updatedRows = statement.executeUpdate();
+            if (updatedRows == 0) {
+                throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Employee not found."
+                );
+            }
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to change password due to a database error.",
+                e
+            );
         }
     }
 
-    public void addStaff(String name, String username, String password, String role) {
+    public int addStaff(String name, String username, String password, String role) {
+        if ("doctor".equalsIgnoreCase(role)) {
+            role = "Doctor";
+        } else if ("technician".equalsIgnoreCase(role)) {
+            role = "Technician";
+        } else {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Role must be doctor or technician."
+            );
+        }
         // TODO (p.1): Complete the administrator's create-doctor/technician operation.
         // Implementation: match Doctor/Technician in the schema and supply the UI's employee ID.
-        int updated = jdbc.update(
-            "INSERT INTO employees (ename, euser, epass, etype) VALUES (?, ?, ?, ?)",
-            name,
-            username,
-            password,
-            role
-        );
-        if (updated == 0) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to add staff.");
+        String sql = "INSERT INTO employees (ename, euser, epass, etype) VALUES (?, ?, ?, ?)";
+
+        try (
+            Connection connection = dataSource.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS)
+        ) {
+            statement.setString(1, name);
+            statement.setString(2, username);
+            statement.setString(3, password);
+            statement.setString(4, role);
+
+            int updatedRows = statement.executeUpdate();
+            if (updatedRows != 1) {
+                throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to add staff."
+                );
+            }
+
+            try (ResultSet keys = statement.getGeneratedKeys()) {
+                if (keys.next()) {
+                    return keys.getInt(1);
+                }
+            }
+
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Employee created, but no ID was returned."
+            );
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to add staff due to a database error.",
+                e
+            );
+        }
+    }
+
+    public List<StaffResponse> getStaff() {
+        String sql = """
+            SELECT eid, ename, euser, etype
+            FROM employees
+            WHERE etype IN ('Doctor', 'Technician')
+            """;
+
+        try (
+            Connection connection = dataSource.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql);
+            ResultSet rs = statement.executeQuery()
+        ) {
+            List<StaffResponse> staff = new ArrayList<>();
+
+            while (rs.next()) {
+                staff.add(new StaffResponse(
+                    rs.getInt("eid"),
+                    rs.getString("ename"),
+                    rs.getString("euser"),
+                    rs.getString("etype").toLowerCase(java.util.Locale.ROOT)
+                ));
+            }
+
+            return staff;
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to load staff.",
+                e
+            );
         }
     }
 }
+

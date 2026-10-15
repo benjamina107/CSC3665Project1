@@ -1,48 +1,13 @@
-import { useState } from 'react'
+import { useState,useEffect } from 'react'
 import { Plus, Trash2, KeyRound, Users, Stethoscope, X, AlertCircle, CheckCircle2 } from 'lucide-react'
+import java.util.List;
 
 // TODO (p.1): Connect admin staff creation/removal/password setting to the database.
 // Implementation note: load staff from employees to select accounts for these operations;
 // the assignment does not require counts or a specific listing endpoint.
 // Last Login is optional display-only mock data, not an assignment requirement.
 
-// ─── Mock data (remove when backend is ready) ─────────────────────────────────
-const INITIAL_DOCTORS = [
-  { id: 1,  name: 'Dr. Jane Smith',       username: 'dr.smith',    lastLogin: 'Sep 15, 2026' },
-  { id: 2,  name: 'Dr. Michael Jones',    username: 'dr.jones',    lastLogin: 'Sep 14, 2026' },
-  { id: 3,  name: 'Dr. Emily Chen',       username: 'dr.chen',     lastLogin: 'Sep 15, 2026' },
-  { id: 4,  name: 'Dr. Robert Davis',     username: 'dr.davis',    lastLogin: 'Sep 13, 2026' },
-  { id: 5,  name: 'Dr. Lisa Martinez',    username: 'dr.martinez', lastLogin: 'Sep 12, 2026' },
-  { id: 6,  name: 'Dr. James Wilson',     username: 'dr.wilson',   lastLogin: 'Sep 15, 2026' },
-  { id: 7,  name: 'Dr. Sarah Taylor',     username: 'dr.taylor',   lastLogin: 'Sep 11, 2026' },
-  { id: 8,  name: 'Dr. David Anderson',   username: 'dr.anderson', lastLogin: 'Sep 14, 2026' },
-  { id: 9,  name: 'Dr. Jennifer Thomas',  username: 'dr.thomas',   lastLogin: 'Sep 10, 2026' },
-  { id: 10, name: 'Dr. Christopher Lee',  username: 'dr.lee',      lastLogin: 'Sep 15, 2026' },
-]
 
-const INITIAL_TECHNICIANS = [
-  { id: 11, name: 'Alex Johnson',    username: 'tech.johnson',  lastLogin: 'Sep 15, 2026' },
-  { id: 12, name: 'Sam Williams',    username: 'tech.williams', lastLogin: 'Sep 15, 2026' },
-  { id: 13, name: 'Casey Brown',     username: 'tech.brown',    lastLogin: 'Sep 14, 2026' },
-  { id: 14, name: 'Morgan Lee',      username: 'tech.lee',      lastLogin: 'Sep 14, 2026' },
-  { id: 15, name: 'Jordan Garcia',   username: 'tech.garcia',   lastLogin: 'Sep 13, 2026' },
-  { id: 16, name: 'Riley Harris',    username: 'tech.harris',   lastLogin: 'Sep 13, 2026' },
-  { id: 17, name: 'Avery Clark',     username: 'tech.clark',    lastLogin: 'Sep 12, 2026' },
-  { id: 18, name: 'Drew Lewis',      username: 'tech.lewis',    lastLogin: 'Sep 12, 2026' },
-  { id: 19, name: 'Blake Robinson',  username: 'tech.robinson', lastLogin: 'Sep 11, 2026' },
-  { id: 20, name: 'Quinn Walker',    username: 'tech.walker',   lastLogin: 'Sep 11, 2026' },
-  { id: 21, name: 'Cameron Hall',    username: 'tech.hall',     lastLogin: 'Sep 10, 2026' },
-  { id: 22, name: 'Reese Allen',     username: 'tech.allen',    lastLogin: 'Sep 10, 2026' },
-  { id: 23, name: 'Skyler Young',    username: 'tech.young',    lastLogin: 'Sep 9, 2026'  },
-  { id: 24, name: 'Dakota King',     username: 'tech.king',     lastLogin: 'Sep 9, 2026'  },
-  { id: 25, name: 'Finley Wright',   username: 'tech.wright',   lastLogin: 'Sep 8, 2026'  },
-  { id: 26, name: 'Harley Scott',    username: 'tech.scott',    lastLogin: 'Sep 8, 2026'  },
-  { id: 27, name: 'Jamie Torres',    username: 'tech.torres',   lastLogin: 'Sep 7, 2026'  },
-  { id: 28, name: 'Kerry Nguyen',    username: 'tech.nguyen',   lastLogin: 'Sep 7, 2026'  },
-  { id: 29, name: 'Logan Hill',      username: 'tech.hill',     lastLogin: 'Sep 6, 2026'  },
-  { id: 30, name: 'Peyton Adams',    username: 'tech.adams',    lastLogin: 'Sep 6, 2026'  },
-]
-// ─────────────────────────────────────────────────────────────────────────────
 
 function StatCard({ icon: Icon, value, label, color }) {
   return (
@@ -82,7 +47,7 @@ function StaffTable({ rows, onRemove, onResetPassword }) {
                 </div>
               </td>
               <td className="px-4 py-3.5 text-gray-500 font-mono text-xs">{person.username}</td>
-              <td className="px-4 py-3.5 text-gray-400">{person.lastLogin}</td>
+              <td className="px-4 py-3.5 text-gray-400">{person.lastLogin ?? '—'}</td>
               <td className="px-4 py-3.5">
                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
@@ -116,42 +81,50 @@ function AddStaffPanel({ role, onClose, onAdd }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (!name || !username || !password) { setError('All fields are required.'); return }
-    if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
+    setSuccess(false)
 
-    const addStaffMember = async () => {
-      // TODO (p.1): Make Add Staff create a real doctor/technician account.
-      // Implementation: call this helper and replace the mock onAdd below.
+    if (!name.trim() || !username.trim() || !password) {
+      setError('All fields are required.')
+      return
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.')
+      return
+    }
+
+    try {
       const response = await fetch('/api/admin/staff', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name, username, password, role }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          username: username.trim(),
+          password,
+          role,
+        }),
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        setError(errorData.message || 'Failed to add staff member.')
-        return
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(
+          errorData.detail ||
+          errorData.message ||
+          'Failed to add staff member.'
+        )
       }
 
-      const newStaffMember = await response.json()
-      onAdd(newStaffMember)
+      const createdStaff = await response.json()
+      onAdd({ ...createdStaff, lastLogin: 'Never' })
       setSuccess(true)
-      setTimeout(() => { setSuccess(false); setName(''); setUsername(''); setPassword('') }, 2000)
+      setName('')
+      setUsername('')
+      setPassword('')
+    } catch (err) {
+      setError(err.message)
     }
-
-
-
-
-
-    onAdd({ id: Date.now(), name, username, lastLogin: 'Never' })
-    setSuccess(true)
-    setTimeout(() => { setSuccess(false); setName(''); setUsername(''); setPassword('') }, 2000)
   }
 
   return (
@@ -252,10 +225,11 @@ function ConfirmModal({ person, action, onConfirm, onCancel }) {
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('doctors')
-  const [doctors, setDoctors] = useState(INITIAL_DOCTORS)
-  const [technicians, setTechnicians] = useState(INITIAL_TECHNICIANS)
-  const [showAddPanel, setShowAddPanel] = useState(false)
-  const [confirmAction, setConfirmAction] = useState(null)
+  const [doctors, setDoctors] = useState([])
+  const [technicians, setTechnicians] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  
 
   const currentList = activeTab === 'doctors' ? doctors : technicians
   const setCurrentList = activeTab === 'doctors' ? setDoctors : setTechnicians
@@ -274,6 +248,47 @@ export default function AdminDashboard() {
     // TODO (p.1): Let the administrator set the selected staff member's password.
     // Implementation: collect the password and send the selected employee ID to the backend.
     setConfirmAction(null)
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadStaff() {
+      try {
+        const response = await fetch('/api/admin/staff')
+
+        if (!response.ok) {
+          throw new Error('Failed to load staff.')
+        }
+
+        const staff = await response.json()
+
+        if (!cancelled) {
+          setDoctors(staff.filter(person => person.role === 'doctor'))
+          setTechnicians(
+            staff.filter(person => person.role === 'technician')
+          )
+        }
+      } catch (err) {
+        if (!cancelled) setLoadError(err.message)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadStaff()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (loading) {
+    return <div className="p-8">Loading staff…</div>
+  }
+
+  if (loadError) {
+    return <div className="p-8 text-red-600">{loadError}</div>
   }
 
   return (
