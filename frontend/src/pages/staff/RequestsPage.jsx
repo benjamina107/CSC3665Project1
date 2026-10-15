@@ -2,12 +2,11 @@ import { useState } from 'react'
 import { Umbrella, Thermometer, CheckCircle2, XCircle, Clock, AlertCircle, CalendarDays, Info } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
-// TODO: Replace MOCK_INITIAL with GET /api/requests/my: current-year PTO usage plus
-// history from requests joined to pto_requests/work_requests for the logged-in employee.
-// TODO: Add work-date/shift requests, selecting real shifts (sdate + full shift key)
-// and sending them to POST /api/requests; show these alongside PTO in history.
-// TODO: Map UI 'Sick Day' to pto_requests.reason='Sick'; Vacation already matches.
-// The schema has no note/denial-reason columns: decide storage before promising persistence.
+// TODO: Replace mock PTO balances with the employee's real annual usage from the backend.
+// TODO (p.1): Let employees request the dates and times they work.
+// Implementation: select a real shift and send its key with the employee ID.
+// Implementation note: map UI 'Sick Day' to pto_requests.reason='Sick'.
+// Notes and saved request history are optional; show the immediate backend denial reason.
 
 // ─── Mock time-off data (replace with GET /api/requests/my) ──────────────────
 const MOCK_INITIAL = {
@@ -123,18 +122,17 @@ export default function RequestsPage() {
 
   const handleSubmit = (e) => {
     // TODO: Await the backend decision rather than auto-approving; show its denial reason,
-    // then reload balances/history and schedule on approval. Handle loading/network errors.
+    // then refresh the PTO balances and schedule on approval.
     e.preventDefault()
     setResult(null)
 
     const validationError = validateRequest(reqType, startDate, endDate, balance)
     if (validationError) {
-      // TODO: POST /api/requests → backend returns { granted: false, reason: '...' }
       setResult({ status: 'Denied', message: validationError })
       return
     }
 
-    // TODO: POST /api/requests  { type: reqType, startDate, endDate, note }
+    // Implementation: send employee ID, request type, and dates/shift to the request API.
     // For now: optimistically grant and update balance
     const newRequest = {
       id: Date.now(),

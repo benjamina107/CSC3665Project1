@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Clock, Users, CalendarDays, Scissors } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
-// TODO: Replace mock schedules with GET /api/schedule for the logged-in employee;
+// TODO (p.1): Show the logged-in employee's real schedule for the next two weeks;
 // render actual dates, days off, shift hours, and opposite-role coworkers for two weeks.
 // Map schema '8:30 Shift'/'Sunday Shift' to these UI keys, or make the keys consistent.
 // Derive surgery highlighting from shifts.surgery, not a nonexistent 'Surgery' block.
-// Show loading/errors/empty states and refresh after a granted work/PTO request.
+// Reload the schedule after a granted work/PTO request so it shows the new assignments.
 
 // ─── Shift styling config ─────────────────────────────────────────────────────
 const SHIFT_CONFIG = {

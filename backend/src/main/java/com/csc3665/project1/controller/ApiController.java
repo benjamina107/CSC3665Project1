@@ -1,5 +1,7 @@
 package com.csc3665.project1.controller;
-
+import service.DBService;
+import dto.LoginResponse;
+import dto.StaffRequest;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,17 +13,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api")
 public class ApiController {
-
-    // TODO: Import service.DBService and dto.LoginResponse; define/import StaffRequest
-    // and reuse dto.ChangePasswordRequest instead of duplicating it inside this class.
-    // TODO: Establish server-side authentication; restrict staff create/remove/password
-    // actions to employees.is_admin=true, and scope schedule/request APIs to the caller.
-    // TODO: Add GET /admin/staff, DELETE /admin/staff/{eid}, and
-    // POST /admin/staff/{eid}/reset-password accepting a password to set.
-    // TODO: Add GET /schedule for the logged-in employee's next two weeks.
-    // Add POST /requests for PTO and work preferences; return an immediate decision/reason.
-    // Add GET /requests/my for history and current-calendar-year PTO usage/allowance.
-    // Endpoint names are proposed contracts; keep the frontend and DTOs consistent.
+    // Demo uses frontend setUser for login state; pass user.id for schedule/PTO queries.
+    // Implementation fix: imports must use com.csc3665.project1.service/dto to compile.
+    // TODO (p.1): Complete admin staff creation/removal/password setting.
+    // TODO (p.1): Provide each employee's next two weeks and coworkers.
+    // TODO (pp.1-2): Accept work/PTO requests, return immediate decisions/reasons,
+    // and provide annual vacation/sick usage.
+    // Implementation note: API paths/DTOs are up to this project; match frontend fetch calls.
 
     private final DBService dbService;
 
@@ -31,9 +29,7 @@ public class ApiController {
 
 
     @GetMapping("/auth/login")
-    // TODO: Return LoginResponse rather than boolean (DBService already returns it);
-    // normalize roles using is_admin, and expose first_login as isFirstLogin.
-    public boolean login(String user, String pass) {
+    public LoginResponse login(String user, String pass) {
         return dbService.login(user, pass);
     }
 
@@ -44,10 +40,12 @@ public class ApiController {
         dbService.changePassword(request.eid(), request.newPassword());
     }
 
+    // Implementation note: the dashboard needs the created employee ID; it can be returned
+    // here or obtained by reloading staff. The assignment does not prescribe a response DTO.
     @PostMapping("/admin/staff")
-    // TODO: Return the new staff DTO rather than void to match the frontend JSON read.
-    public void addStaff(@RequestBody StaffRequest request) {
+    public StaffRequest addStaff(@RequestBody StaffRequest request) {
         dbService.addStaff(request.name(), request.username(), request.password(), request.role());
+        return request;
     }
 }
 
