@@ -7,6 +7,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* A continuous color transition with faint grain to soften color banding. */
+.auth-gradient {
+  background-color: #134e4a;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23fff' opacity='.035' filter='url(%23grain)' d='M0 0h180v180H0z'/%3E%3C/svg%3E"),
+    linear-gradient(135deg, #134e4a, #0f766e);
+  background-size: 180px 180px, 100% 100%;
+}
+
 @layer utilities {
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

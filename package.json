@@ -1,0 +1,13 @@
+{
+  "name": "csc3665-project1",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "dev:frontend": "npm --prefix frontend run dev:frontend",
+    "dev:backend": "npm --prefix frontend run dev:backend",
+    "build": "npm --prefix frontend run build",
+    "build:frontend": "npm --prefix frontend run build:frontend",
+    "build:backend": "npm --prefix frontend run build:backend",
+    "preview": "npm --prefix frontend run preview"
+  }
+}
