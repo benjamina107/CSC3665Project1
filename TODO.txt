@@ -32,8 +32,7 @@ TODO: Require vacation requests at least three weeks in advance.
 TODO: Reject sick-day requests for today; the document allows any other day.
 
 SUBMISSION (page 2)
-TODO: Write UserManual explaining use of the system, including initial logins/passwords.
-TODO: Write LogFile recording who did what and how much time it took.
-TODO: Write Assumptions describing assumptions made and clarify them with the instructor.
-TODO: Create an ER diagram and include all CREATE TABLE commands generated from it.
+TODO: FINISH UserManual explaining use of the system, including initial logins/passwords.
+TODO: CONTINUE TO WRITE IN LogFile recording who did what and how much time it took.
+TODO: Write any more Assumptions describing assumptions made and clarify them with the instructor
 TODO: ZIP the project and required files for the team's Canvas submission.
