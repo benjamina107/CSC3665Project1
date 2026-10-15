@@ -6,7 +6,7 @@ import com.csc3665.project1.dto.StaffResponse;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
+import java.util.List;
 
 
 
@@ -15,8 +15,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class ApiController {
     // Demo uses frontend setUser for login state; pass user.id for schedule/PTO queries.
-    // Implementation fix: imports must use com.csc3665.project1.service/dto to compile.
-    // TODO (p.1): Complete admin staff creation/removal/password setting.
     // TODO (p.1): Provide each employee's next two weeks and coworkers.
     // TODO (pp.1-2): Accept work/PTO requests, return immediate decisions/reasons,
     // and provide annual vacation/sick usage.
@@ -40,9 +38,7 @@ public class ApiController {
     public void changePassword(@RequestBody ChangePasswordRequest request) {
         dbService.changePassword(request.eid(), request.newPassword());
     }
-
-    // Implementation note: the dashboard needs the created employee ID; it can be returned
-    // here or obtained by reloading staff. The assignment does not prescribe a response DTO.
+    
     @PostMapping("/admin/staff")
     public StaffResponse addStaff(@RequestBody StaffRequest request) {
         int id = dbService.addStaff(request.name(), request.username(), request.password(), request.role());
@@ -52,6 +48,21 @@ public class ApiController {
     @GetMapping("/admin/staff")
     public List<StaffResponse> getStaff() {
         return dbService.getStaff();
+    }
+
+    @DeleteMapping("/admin/staff/{eid}")
+    public void removeStaff(@PathVariable int eid) {
+        dbService.removeStaff(eid);
+    }
+
+    public record SetPasswordRequest(String newPassword) {}
+
+    @PutMapping("/admin/staff/{eid}/password")
+    public void setStaffPassword(
+        @PathVariable int eid,
+        @RequestBody SetPasswordRequest request
+    ) {
+        dbService.setStaffPassword(eid, request.newPassword());
     }
 }
 

@@ -35,7 +35,7 @@ export default function ChangePasswordPage() {
     setLoading(true)
     try {
       await changePassword(newPassword)
-      navigate('/admin')
+      navigate('/', { replace: true })
     } catch (err) {
       setError(err.message)
     } finally {

@@ -8,23 +8,36 @@ import RequestsPage from './pages/staff/RequestsPage'
 import Layout from './components/Layout'
 
 function RequireAuth({ children, roles }) {
-  // TODO: Send first-login admins to the password-change page before staff management;
-  // allow that page itself through the route guard. Keep admin controls in admin routes.
   const { user } = useAuth()
+  const { pathname } = useLocation()
+
   if (!user) return <Navigate to="/login" replace />
-  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
+
+  if (user.isFirstLogin && pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />
+  }
+
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to="/" replace />
+  }
+
   return children
 }
 
 function RootRedirect() {
   const { user } = useAuth()
+
   if (!user) return <Navigate to="/login" replace />
-  if (user.role === 'admin') {
-    return user.isFirstLogin
-      ? <Navigate to="/admin/change-password" replace />
-      : <Navigate to="/admin" replace />
+  if (user.isFirstLogin) {
+    return <Navigate to="/change-password" replace />
   }
-  return <Navigate to="/schedule" replace />
+
+  return (
+    <Navigate
+      to={user.role === 'admin' ? '/admin' : '/schedule'}
+      replace
+    />
+  )
 }
 
 export default function App() {
@@ -36,9 +49,9 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
 
           <Route
-            path="/admin/change-password"
+            path="/change-password"
             element={
-              <RequireAuth roles={['admin']}>
+              <RequireAuth>
                 <ChangePasswordPage />
               </RequireAuth>
             }
