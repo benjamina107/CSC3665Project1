@@ -23,7 +23,7 @@ function StaffTable({ rows, onRemove, onResetPassword }) {
           <tr className="bg-gray-50 border-b border-gray-100">
             <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
             <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Username</th>
-            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Login</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">First Login</th>
             <th className="px-4 py-3" />
           </tr>
         </thead>
@@ -39,7 +39,7 @@ function StaffTable({ rows, onRemove, onResetPassword }) {
                 </div>
               </td>
               <td className="px-4 py-3.5 text-gray-500 font-mono text-xs">{person.username}</td>
-              <td className="px-4 py-3.5 text-gray-400">{person.lastLogin ?? '—'}</td>
+              <td className="px-4 py-3.5 text-gray-400">{person.firstLogin ? 'Yes' : 'No'}</td>
               <td className="px-4 py-3.5">
                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
@@ -109,7 +109,7 @@ function AddStaffPanel({ role, onClose, onAdd }) {
       }
 
       const createdStaff = await response.json()
-      onAdd({ ...createdStaff, lastLogin: 'Never' })
+      onAdd({ ...createdStaff, firstLogin: 'Yes' })
       setSuccess(true)
       setName('')
       setUsername('')
