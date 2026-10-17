@@ -64,6 +64,8 @@ public class ApiController {
     ) {
         dbService.setStaffPassword(eid, request.newPassword());
     }
+
+    @GetMapping 
 }
 
 

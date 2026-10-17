@@ -1,5 +1,7 @@
 package com.csc3665.project1.service;
 import com.csc3665.project1.dto.LoginResponse;
+import com.csc3665.project1.dto.PTOResponse;
+
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -11,6 +13,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+import java.time.LocalDate; 
 
 @Service
 public class DBService {
@@ -44,6 +47,8 @@ public class DBService {
     // pto_requests.reason uses Sick/Vacation. Persist usage/schedule changes on approval.
 
     private final DataSource dataSource;
+    private static final int VACATION_DAYS = 8;
+    private static final int SICK_DAYS = 4;
 
     public DBService(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -254,5 +259,54 @@ public class DBService {
         );
     }
 }
+
+    public PTOResponse getPTO(int eid){
+        LocalDate yearStart = LocalDate.now().withDayOfYear(1);
+        String sql = """
+        SELECT COALESCE(SUM (r.end_date - r.start_date + 1), 0) as used
+        FROM requests r, pto_requests p
+        WHERE r.eid = ?
+        AND p.rid = r.rid
+        AND p.reason = ?
+        AND r.approved = true
+        AND r.start_date >= ?
+        AND r.end_date < ?
+        """;
+
+        try (
+            Connection connection = dataSource.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql)
+        ){
+            statement.setInt(1, eid);
+            statement.setString(2, "Vacation");
+            statement.setDate(3, java.sql.Date.valueOf(yearStart));
+            statement.setDate(4, java.sql.Date.valueOf(yearStart.plusYears(1)));
+            int vacationUsed;
+            try (ResultSet rs = statement.executeQuery()){
+                rs.next();
+                vacationUsed = rs.getInt("used");
+            }
+
+            statement.setString(2, "Sick");
+            int sickUsed;
+            try (ResultSet rs = statement.executeQuery()){
+                rs.next();
+                sickUsed = rs.getInt("used");
+            }
+            return new PTOResponse(
+            new PTOResponse.PTOBalance(vacationUsed, VACATION_DAYS),
+            new PTOResponse.PTOBalance(sickUsed, SICK_DAYS)
+        );
+        }
+
+        catch(SQLException e){
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to load PTO balances.",
+                e
+            );
+        }
+
+    }
 }
 
