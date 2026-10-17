@@ -17,7 +17,7 @@ TODO: Distribute the extra doctor shifts with priority for Saturday Early Mornin
 TODO: Give technicians the same shifts as doctors, with at least one technician working
       with every doctor, only one technician overnight, and two technicians on Sundays.
       Spread the rest of technician scheduling as evenly as possible.
-TODO: Let each employee view their schedule for the next two weeks and see the opposite-role
+DONE: Let each employee view their schedule for the next two weeks and see the opposite-role
       coworkers they will work with. Display doctors' surgery shifts in a different color.
       A table is suggested by the document, not mandatory; the existing UI already uses one.
 

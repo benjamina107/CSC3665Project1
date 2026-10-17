@@ -1,5 +1,10 @@
 package com.csc3665.project1.service;
 import com.csc3665.project1.dto.LoginResponse;
+import com.csc3665.project1.dto.ScheduleEntry;
+import com.csc3665.project1.dto.ScheduleResponse;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -29,8 +34,8 @@ public class DBService {
     // Sundays, and spread the remaining technician scheduling as evenly as possible.
     // The document says "two technicians on Sundays"; clarify its interaction with the
     // overnight rule in Assumptions rather than adding a new staffing rule here.
-    // TODO (p.1): Return each employee's next two weeks and opposite-role coworkers;
-    // display doctors' surgery shifts in a different color.
+    // DONE (p.1): getSchedule() returns each employee's next two weeks and opposite-role
+    // coworkers; the SchedulePage colors doctors' surgery shifts from shifts.surgery.
     // Implementation notes: use shifts/working/employees and exact schema block values.
     // The current (block, sdate) key cannot represent separate regular Early Morning
     // and surgery rows on the same date; account for this when implementing coverage.
@@ -191,6 +196,86 @@ public class DBService {
             throw new ResponseStatusException(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "Unable to add staff due to a database error.",
+                e
+            );
+        }
+    }
+
+    // Next two weeks (today .. today + 13 days) of shifts for one employee, plus the
+    // opposite-role employees on each of those shifts. Read-only; the schedule itself is
+    // whatever is in the working table, so rearrangements from granted requests show up
+    // automatically on the next call.
+    public ScheduleResponse getSchedule(int eid) {
+        LocalDate start = LocalDate.now();
+        LocalDate end = start.plusDays(13);
+
+        String sql = """
+            SELECT s.sdate, s.day_of_week, s.block, s.surgery, e2.ename AS coworker
+            FROM working me
+            JOIN employees mine ON mine.eid = me.eid
+            JOIN shifts s ON s.sdate = me.sdate AND s.block = me.block
+            LEFT JOIN working w2 ON w2.sdate = me.sdate AND w2.block = me.block
+            LEFT JOIN employees e2 ON e2.eid = w2.eid
+                AND e2.etype IN ('Doctor', 'Technician')
+                AND e2.etype <> mine.etype
+            WHERE me.eid = ? AND s.sdate BETWEEN ? AND ?
+            ORDER BY s.sdate,
+                CASE s.block
+                    WHEN 'Early Morning' THEN 1
+                    WHEN '8:30 Shift'    THEN 2
+                    WHEN 'Late Doctor'   THEN 3
+                    WHEN 'Sunday Shift'  THEN 4
+                    WHEN 'Overnight'     THEN 5
+                    ELSE 6
+                END,
+                e2.ename
+            """;
+
+        try (
+            Connection connection = dataSource.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setInt(1, eid);
+            statement.setDate(2, java.sql.Date.valueOf(start));
+            statement.setDate(3, java.sql.Date.valueOf(end));
+
+            // One entry per (date, block); the join repeats it once per coworker.
+            Map<String, ScheduleEntry> entries = new LinkedHashMap<>();
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    String date = rs.getDate("sdate").toLocalDate().toString();
+                    String block = rs.getString("block");
+                    String key = date + "|" + block;
+
+                    ScheduleEntry entry = entries.get(key);
+                    if (entry == null) {
+                        entry = new ScheduleEntry(
+                            date,
+                            rs.getString("day_of_week"),
+                            block,
+                            rs.getBoolean("surgery"),
+                            new ArrayList<>()
+                        );
+                        entries.put(key, entry);
+                    }
+
+                    String coworker = rs.getString("coworker");
+                    if (coworker != null && !entry.coworkers().contains(coworker)) {
+                        entry.coworkers().add(coworker);
+                    }
+                }
+            }
+
+            return new ScheduleResponse(
+                start.toString(),
+                end.toString(),
+                new ArrayList<>(entries.values())
+            );
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to load schedule.",
                 e
             );
         }
