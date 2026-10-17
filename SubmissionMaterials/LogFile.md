@@ -6,3 +6,4 @@
 | All | Finished up login and logout endpoints | Oct 13 | 1 hour |
 | Ben | Implemented admin dashboard fully functional | Oct 14 | 4 hours |
 | Ben | Added supplemental files | Oct 15 | 1 hour |
+| Sushant | Worked on the Scheduling | Oct 17 | 2 hours |
