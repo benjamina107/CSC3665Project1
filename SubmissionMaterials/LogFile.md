@@ -7,3 +7,4 @@
 | Ben | Implemented admin dashboard fully functional | Oct 14 | 4 hours |
 | Ben | Added supplemental files | Oct 15 | 1 hour |
 | Sushant | Worked on the Scheduling | Oct 17 | 2 hours |
+| Sushant | Finished the Scheduling | Oct 18 | 2 hours |
