@@ -56,6 +56,11 @@ public class ApiController {
         return dbService.getStaff();
     }
 
+    @PostMapping("/admin/schedule/generate")
+    public void generateSchedule() {
+        dbService.generateSchedule();
+    }
+
     @DeleteMapping("/admin/staff/{eid}")
     public void removeStaff(@PathVariable int eid) {
         dbService.removeStaff(eid);

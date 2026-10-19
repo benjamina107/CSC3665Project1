@@ -81,7 +81,7 @@ The replacement password is saved.
 
 ## 3. Doctor or technician: view a schedule
 
-**Preview:** the schedule page currently displays fixed sample schedules by employee role. It does not yet retrieve individual assignments or the actual next two weeks from the database.
+The schedule page displays your assignments for today and the following 13 days. It shows the coworkers from the opposite role who share each shift.
 
 1. Sign in as a doctor or technician and select **My Schedule**.
 2. Select **Week 1** or **Week 2** to switch the displayed week.
@@ -89,7 +89,7 @@ The replacement password is saved.
 4. Find a row by day and date, then read its shift, hours, and coworkers.
 5. Use the color legend to identify shift types. Surgery shifts are highlighted in amber; **Day Off** means no assigned shift.
 
-Doctors see their accompanying technicians. Technicians see the doctor they work with. The intended completed version will show the signed-in employee's real assignments for the next two weeks and update them after approved requests.
+Doctors see their accompanying technicians. Technicians see the doctors they work with. The schedule is generated and stored in the database by an administrator.
 
 ### Shift reference
 
@@ -102,15 +102,15 @@ Doctors see their accompanying technicians. Technicians see the doctor they work
 | Sunday Shift | 8:00 a.m. to 8:00 p.m. |
 | Overnight | 8:00 p.m. to 8:00 a.m. the following day |
 
-### Scheduling rules (Planned)
+### Scheduling rules
 
-The scheduler is intended to assign approximately four shifts per employee each week, with at least ten hours between shifts. A doctor may not have two surgery days or two overnight shifts in the same week.
+An administrator can select **Generate next 14 days** on the staff management page. This replaces existing `working` assignments from today through the next 13 days. Generation is atomic: if the available staff cannot cover the shifts while respecting the rest and weekly limits, the existing schedule is left unchanged and an error is shown. The generator balances assignments toward approximately four per employee per week when coverage and rest constraints allow.
 
-Monday through Saturday require Early Morning, 8:30 Shift, Late Doctor, and surgery coverage, together with overnight coverage. Sunday requires Sunday Shift and overnight coverage. Each shift must have at least one doctor; Sunday and overnight shifts must not have two doctors. Extra doctor coverage prioritizes Saturday Early Morning and Friday Late Doctor, then other Early Morning shifts.
+Monday through Saturday require Early Morning, 8:30 Shift, Late Doctor, and overnight coverage. Sunday requires Sunday Shift and overnight coverage. The Early Morning row is also used for surgery; its `surgery` flag is set for the whole shift. Each shift has at least one doctor; Sunday and overnight shifts have exactly one doctor. Extra doctor coverage prioritizes Saturday Early Morning and Friday Late Doctor, then other Early Morning shifts.
 
-At least one technician must accompany each doctor. Overnight requires one technician, and Sundays require two technicians. Remaining technician shifts should be distributed as evenly as possible. Administrators are separate from the doctor and technician workforce.
+At least one technician accompanies each doctor. Overnight has one technician; the Sunday Shift has two technicians. Technician assignments are balanced across available staff, subject to the 10-hour rest rule. Administrators are not included in clinical staffing.
 
-Automatic schedule generation and enforcement of these rules are not yet available. There is currently no schedule-generation or schedule-editing control in the administrator dashboard.
+The existing schema does not distinguish the surgeon from other doctors assigned to the Early Morning shift. Consequently, all doctors on that shift are shown as working surgery. See [Assumptions](./Assumptions.md) for this and the Sunday staffing interpretation.
 
 ## 4. Doctor or technician: time off requests
 
@@ -149,5 +149,4 @@ In the completed system, the same submission workflow will save the request, che
 Doctors and technicians are intended to be able to request the dates and times they work. This control is not yet present; **Time Off Requests** currently offers only Vacation and Sick Day.
 
 Once implemented, the workflow will be to choose a work date and shift or time period, submit the request, and read the immediate approval or denial with its explanation. The scheduler will apply the same first-come, first-served conflict rules, staffing requirements, rest periods, and weekly restrictions. After approval, check **My Schedule** for the resulting assignment and coworkers. Exact button names and placement are still to be determined.
-
 
