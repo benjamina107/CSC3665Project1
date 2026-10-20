@@ -15,8 +15,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api")
 public class ApiController {
-    // Demo uses frontend setUser for login state; pass user.id for schedule/PTO queries.
-    // DONE (p.1): GET /api/schedule?eid= provides each employee's next two weeks and coworkers.
     // TODO (pp.1-2): Accept work/PTO requests, return immediate decisions/reasons,
     // and provide annual vacation/sick usage.
     // Implementation note: API paths/DTOs are up to this project; match frontend fetch calls.
