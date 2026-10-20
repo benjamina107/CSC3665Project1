@@ -34,7 +34,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left panel */}
-      <div className="auth-gradient hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-teal-950 via-teal-800 to-teal-400 flex-col justify-between p-12 relative overflow-hidden">
+        {/* Decorative circles */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-teal-600 opacity-20" />
+        <div className="absolute -bottom-32 -right-16 w-80 h-80 rounded-full bg-teal-500 opacity-15" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-teal-600 opacity-10" />
+
         {/* Logo */}
         <div className="relative flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center">
@@ -52,7 +57,6 @@ export default function LoginPage() {
             Manage your shifts, request time off, and coordinate with your team — all in one place.
           </p>
         </div>
-
       </div>
 
       {/* Right panel — login form */}

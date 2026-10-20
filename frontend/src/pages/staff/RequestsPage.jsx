@@ -10,21 +10,15 @@ import { useAuth } from '../../context/AuthContext'
 
 // ─── Mock time-off data (replace with GET /api/requests/my) ──────────────────
 const MOCK_INITIAL = {
-  vacation: { used: 2, total: 8 },
-  sick:     { used: 1, total: 4 },
-  history: [
-    { id: 1, type: 'Vacation', startDate: 'Oct 10, 2026', endDate: 'Oct 12, 2026', days: 3, status: 'Approved',  deniedReason: null },
-    { id: 2, type: 'Sick Day', startDate: 'Sep 5, 2026',  endDate: 'Sep 5, 2026',  days: 1, status: 'Approved',  deniedReason: null },
-    { id: 3, type: 'Vacation', startDate: 'Nov 1, 2026',  endDate: 'Nov 2, 2026',  days: 2, status: 'Denied',    deniedReason: 'We will be short on doctors if we grant your request.' },
-  ],
+  vacation: { used: 0, total: 8 },
+  sick:     { used: 0, total: 4 },
+  history: [],
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Minimum advance notice: vacation = 21 days, sick = tomorrow (not today)
 function validateRequest(type, startDateStr, endDateStr, balance) {
-  // TODO: Use the actual current date; leave authoritative policy/availability checks
-  // to the server. Apply the no-today sick rule to every date in the selected range.
-  const today = new Date('2026-09-15')
+  const today = new Date()
   const start = new Date(startDateStr)
   const end   = new Date(endDateStr)
 

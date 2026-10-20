@@ -23,26 +23,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class DBService {
-    // TODO (p.1): Initialize a database-backed admin/admin account with first_login=true.
-    // Implementation notes: use etype = 'Admin' for the admin role.
-
-    // DONE (p.1): Generate typically four shifts per employee per week, with at least 10
-    // hours between shifts; doctors have at most one surgery day and one overnight per week.
-    // DONE (p.1): Cover each required shift with a doctor:
-    // Mon-Sat: Early Morning 07:30-18:30, 8.30 Shift 08:30-19:30,
-    // Late Doctor 09:30-20:30, and Overnight 20:00-08:00.
-    // Sunday: Sunday Shift 08:00-20:00 and Overnight 20:00-08:00.
-    // No more than one doctor is assigned overnight or on Sunday. Extra doctor shifts
-    // prioritize Saturday Early Morning and Friday Late Doctor, then other Early Mornings.
-    // DONE (p.1): Assign technicians to cover each doctor's shift, one technician overnight,
-    // and two on Sunday Shift; balance technician assignments across available staff.
-    // Assumption: the two Sunday technicians cover the Sunday Shift; Sunday Overnight has one.
-    // DONE (p.1): getSchedule() returns the next two weeks and opposite-role coworkers;
-    // surgery shifts are highlighted using shifts.surgery.
-    // The generator uses the existing shifts/working/employees tables and changes no schema.
-    // Surgery reuses Early Morning with surgery=true. Since surgery is stored on the shift,
-    // that indicator applies to every doctor assigned to Early Morning, not one individual.
-
     // TODO (pp.1-2): Allow requests for work dates/times and time off. Track/display
     // calendar-year usage against eight vacation days and four sick days per employee.
     // TODO (p.2): Process first-come, first-served; grant feasible requests and rearrange
