@@ -1,9 +1,6 @@
 package com.csc3665.project1.controller;
 import com.csc3665.project1.service.DBService;
-import com.csc3665.project1.dto.LoginResponse;
-import com.csc3665.project1.dto.ScheduleResponse;
-import com.csc3665.project1.dto.StaffRequest;
-import com.csc3665.project1.dto.StaffResponse;
+import com.csc3665.project1.dto.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -74,7 +71,10 @@ public class ApiController {
         dbService.setStaffPassword(eid, request.newPassword());
     }
 
-    @GetMapping 
+    @GetMapping("/requests/my")
+    public PTOResponse getPTO(@RequestParam int eid) {
+        return dbService.getPTO(eid);
+    }
 }
 
 
