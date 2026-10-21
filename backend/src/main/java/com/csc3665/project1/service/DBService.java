@@ -1,18 +1,11 @@
 package com.csc3665.project1.service;
-import com.csc3665.project1.dto.LoginResponse;
-<<<<<<< HEAD
-import com.csc3665.project1.dto.PTOResponse;
-
-=======
-import com.csc3665.project1.dto.ScheduleEntry;
-import com.csc3665.project1.dto.ScheduleResponse;
+import com.csc3665.project1.dto.*;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
 import java.time.temporal.TemporalAdjusters;
 import java.util.LinkedHashMap;
 import java.util.Map;
->>>>>>> f1c9c0e302f515fa3c6c40e65dbf34a9621c1bcc
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -25,7 +18,6 @@ import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
-import java.time.LocalDate; 
 
 @Service
 public class DBService {
@@ -531,5 +523,68 @@ public class DBService {
             );
         }
 
+    }
+
+    public String addPTO(
+        int eid,
+        String reason,
+        LocalDate startDate,
+        LocalDate endDate
+    ){
+        if (startDate == null || endDate == null || endDate.isBefore(startDate)) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "Select valid start and end dates."
+            );
+        }
+        if (!"Vacation".equals(reason) && !"Sick".equals(reason)) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "Reason must be Vacation or Sick."
+            );
+        }
+
+        String sql = """
+            INSERT INTO requests (eid, start_date, end_date, approved, request_timestamp)
+            VALUES (?, ?, ?, false, CURRENT_TIMESTAMP)
+            RETURNING rid
+        """;
+        String ptoSql = "INSERT INTO pto_requests (rid, reason) VALUES (?, ?)";
+
+        try (Connection connection = dataSource.getConnection()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+
+            try (
+                PreparedStatement requestStatement = connection.prepareStatement(sql);
+                PreparedStatement ptoStatement = connection.prepareStatement(ptoSql)
+            ) {
+                requestStatement.setInt(1, eid);
+                requestStatement.setDate(2, java.sql.Date.valueOf(startDate));
+                requestStatement.setDate(3, java.sql.Date.valueOf(endDate));
+
+                int rid;
+                try (ResultSet rs = requestStatement.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new SQLException("No request ID was returned.");
+                    }
+                    rid = rs.getInt("rid");
+                }
+
+                ptoStatement.setInt(1, rid);
+                ptoStatement.setString(2, reason);
+                ptoStatement.executeUpdate();
+
+                connection.commit();
+                return "PTO request submitted. Awaiting approval.";
+            } catch (SQLException | RuntimeException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+            }
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, "Unable to submit PTO request.", e
+            );
+        }
     }
 }
