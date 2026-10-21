@@ -25,8 +25,6 @@ primary key (block, sdate)
 
 create table requests(
 rid integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-start_date DATE NOT NULL,
-end_date DATE NOT NUll,
 approved boolean default false,
 eid integer references employees(eid),
 request_timestamp timestamp not null
@@ -35,6 +33,8 @@ request_timestamp timestamp not null
 create table pto_requests(
 rid int primary key references requests(rid) on delete cascade,
 reason text not null,
+start_date DATE NOT NULL,
+end_date DATE NOT NULL,
 CHECK (reason SIMILAR TO '(Sick|Vacation)')
 );
 
