@@ -1,7 +1,18 @@
 package com.csc3665.project1.service;
 import com.csc3665.project1.dto.LoginResponse;
+<<<<<<< HEAD
 import com.csc3665.project1.dto.PTOResponse;
 
+=======
+import com.csc3665.project1.dto.ScheduleEntry;
+import com.csc3665.project1.dto.ScheduleResponse;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.time.temporal.TemporalAdjusters;
+import java.util.LinkedHashMap;
+import java.util.Map;
+>>>>>>> f1c9c0e302f515fa3c6c40e65dbf34a9621c1bcc
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -10,6 +21,7 @@ import java.sql.SQLException;
 import com.csc3665.project1.dto.StaffResponse;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,27 +29,6 @@ import java.time.LocalDate;
 
 @Service
 public class DBService {
-    // TODO (p.1): Initialize a database-backed admin/admin account with first_login=true.
-    // Implementation notes: use etype = 'Admin' for the admin role.
-
-    // TODO (p.1): Schedule typically four shifts/employee/week, with at least 10 hours
-    // between shifts; no doctor has two surgery days or two overnight shifts in a week.
-    // TODO (p.1): Cover these shifts with at least one doctor each:
-    // Mon-Sat: Early Morning 07:30-18:30, 8.30 Shift 08:30-19:30,
-    // Late Doctor 09:30-20:30, surgeon 07:30-18:30, and Overnight 20:00-08:00.
-    // Sunday: Sunday Shift 08:00-20:00 and Overnight 20:00-08:00.
-    // Never two doctors overnight or on Sunday. Prioritize extra doctor shifts on
-    // Saturday Early Morning and Friday Late Doctor, then prefer Early Morning.
-    // TODO (p.1): Provide at least one technician per doctor, only one overnight, two on
-    // Sundays, and spread the remaining technician scheduling as evenly as possible.
-    // The document says "two technicians on Sundays"; clarify its interaction with the
-    // overnight rule in Assumptions rather than adding a new staffing rule here.
-    // TODO (p.1): Return each employee's next two weeks and opposite-role coworkers;
-    // display doctors' surgery shifts in a different color.
-    // Implementation notes: use shifts/working/employees and exact schema block values.
-    // The current (block, sdate) key cannot represent separate regular Early Morning
-    // and surgery rows on the same date; account for this when implementing coverage.
-
     // TODO (pp.1-2): Allow requests for work dates/times and time off. Track/display
     // calendar-year usage against eight vacation days and four sick days per employee.
     // TODO (p.2): Process first-come, first-served; grant feasible requests and rearrange
@@ -201,6 +192,239 @@ public class DBService {
         }
     }
 
+    public void generateSchedule() {
+        LocalDate start = LocalDate.now();
+        LocalDate end = start.plusDays(13);
+        String selectEmployees = """
+            SELECT eid
+            FROM employees
+            WHERE LOWER(etype) = ?
+            ORDER BY eid
+            """;
+        String deleteAssignments = "DELETE FROM working WHERE sdate BETWEEN ? AND ?";
+        String selectExistingAssignments = """
+            SELECT w.eid, w.sdate, w.block, s.surgery
+            FROM working w
+            JOIN shifts s ON s.sdate = w.sdate AND s.block = w.block
+            WHERE w.sdate BETWEEN ? AND ? AND (w.sdate < ? OR w.sdate > ?)
+            """;
+        String upsertShift = """
+            INSERT INTO shifts (surgery, block, day_of_week, sdate)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT (block, sdate) DO UPDATE
+            SET surgery = EXCLUDED.surgery, day_of_week = EXCLUDED.day_of_week
+            """;
+        String insertAssignment = "INSERT INTO working (eid, sdate, block) VALUES (?, ?, ?)";
+
+        try (Connection connection = dataSource.getConnection()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try {
+                List<Integer> doctors = loadEmployeeIds(connection, selectEmployees, "doctor");
+                List<Integer> technicians = loadEmployeeIds(connection, selectEmployees, "technician");
+                LocalDate constraintStart = start
+                    .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusDays(1);
+                LocalDate constraintEnd = end
+                    .with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)).plusDays(1);
+                List<SchedulePlanner.Assignment> existingAssignments =
+                    loadExistingAssignments(
+                        connection,
+                        selectExistingAssignments,
+                        constraintStart,
+                        constraintEnd,
+                        start,
+                        end
+                    );
+                List<SchedulePlanner.Assignment> assignments;
+                try {
+                    assignments = SchedulePlanner.generate(
+                        start, 14, doctors, technicians, existingAssignments
+                    );
+                } catch (IllegalStateException e) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
+                }
+
+                try (PreparedStatement delete = connection.prepareStatement(deleteAssignments)) {
+                    delete.setDate(1, java.sql.Date.valueOf(start));
+                    delete.setDate(2, java.sql.Date.valueOf(end));
+                    delete.executeUpdate();
+                }
+
+                Map<String, SchedulePlanner.Assignment> shifts = new LinkedHashMap<>();
+                for (SchedulePlanner.Assignment assignment : assignments) {
+                    shifts.putIfAbsent(
+                        assignment.date() + "|" + assignment.block(), assignment
+                    );
+                }
+                try (
+                    PreparedStatement shiftStatement = connection.prepareStatement(upsertShift);
+                    PreparedStatement assignmentStatement = connection.prepareStatement(insertAssignment)
+                ) {
+                    for (SchedulePlanner.Assignment assignment : shifts.values()) {
+                        shiftStatement.setBoolean(1, assignment.surgery());
+                        shiftStatement.setString(2, assignment.block());
+                        shiftStatement.setString(
+                            3,
+                            assignment.date().getDayOfWeek().getDisplayName(
+                                TextStyle.FULL, Locale.ENGLISH
+                            )
+                        );
+                        shiftStatement.setDate(4, java.sql.Date.valueOf(assignment.date()));
+                        shiftStatement.addBatch();
+                    }
+                    shiftStatement.executeBatch();
+
+                    for (SchedulePlanner.Assignment assignment : assignments) {
+                        assignmentStatement.setInt(1, assignment.employeeId());
+                        assignmentStatement.setDate(2, java.sql.Date.valueOf(assignment.date()));
+                        assignmentStatement.setString(3, assignment.block());
+                        assignmentStatement.addBatch();
+                    }
+                    assignmentStatement.executeBatch();
+                }
+                connection.commit();
+            } catch (RuntimeException | SQLException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+            }
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to generate the schedule due to a database error.",
+                e
+            );
+        }
+    }
+
+    private List<Integer> loadEmployeeIds(
+        Connection connection,
+        String sql,
+        String role
+    ) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, role);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<Integer> ids = new ArrayList<>();
+                while (rs.next()) {
+                    ids.add(rs.getInt("eid"));
+                }
+                return ids;
+            }
+        }
+    }
+
+    private List<SchedulePlanner.Assignment> loadExistingAssignments(
+        Connection connection,
+        String sql,
+        LocalDate constraintStart,
+        LocalDate constraintEnd,
+        LocalDate start,
+        LocalDate end
+    ) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setDate(1, java.sql.Date.valueOf(constraintStart));
+            statement.setDate(2, java.sql.Date.valueOf(constraintEnd));
+            statement.setDate(3, java.sql.Date.valueOf(start));
+            statement.setDate(4, java.sql.Date.valueOf(end));
+            try (ResultSet rs = statement.executeQuery()) {
+                List<SchedulePlanner.Assignment> assignments = new ArrayList<>();
+                while (rs.next()) {
+                    assignments.add(SchedulePlanner.existingAssignment(
+                        rs.getInt("eid"),
+                        rs.getDate("sdate").toLocalDate(),
+                        rs.getString("block"),
+                        rs.getBoolean("surgery")
+                    ));
+                }
+                return assignments;
+            }
+        }
+    }
+
+    // Next two weeks (today .. today + 13 days) of shifts for one employee, plus the
+    // opposite-role employees on each of those shifts. Read-only; the schedule itself is
+    // whatever is in the working table, so rearrangements from granted requests show up
+    // automatically on the next call.
+    public ScheduleResponse getSchedule(int eid) {
+        LocalDate start = LocalDate.now();
+        LocalDate end = start.plusDays(13);
+
+        String sql = """
+            SELECT s.sdate, s.day_of_week, s.block, s.surgery, e2.ename AS coworker
+            FROM working me
+            JOIN employees mine ON mine.eid = me.eid
+            JOIN shifts s ON s.sdate = me.sdate AND s.block = me.block
+            LEFT JOIN working w2 ON w2.sdate = me.sdate AND w2.block = me.block
+            LEFT JOIN employees e2 ON e2.eid = w2.eid
+                AND e2.etype IN ('Doctor', 'Technician')
+                AND e2.etype <> mine.etype
+            WHERE me.eid = ? AND s.sdate BETWEEN ? AND ?
+            ORDER BY s.sdate,
+                CASE s.block
+                    WHEN 'Early Morning' THEN 1
+                    WHEN '8:30 Shift'    THEN 2
+                    WHEN 'Late Doctor'   THEN 3
+                    WHEN 'Sunday Shift'  THEN 4
+                    WHEN 'Overnight'     THEN 5
+                    ELSE 6
+                END,
+                e2.ename
+            """;
+
+        try (
+            Connection connection = dataSource.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setInt(1, eid);
+            statement.setDate(2, java.sql.Date.valueOf(start));
+            statement.setDate(3, java.sql.Date.valueOf(end));
+
+            // One entry per (date, block); the join repeats it once per coworker.
+            Map<String, ScheduleEntry> entries = new LinkedHashMap<>();
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    String date = rs.getDate("sdate").toLocalDate().toString();
+                    String block = rs.getString("block");
+                    String key = date + "|" + block;
+
+                    ScheduleEntry entry = entries.get(key);
+                    if (entry == null) {
+                        entry = new ScheduleEntry(
+                            date,
+                            rs.getString("day_of_week"),
+                            block,
+                            rs.getBoolean("surgery"),
+                            new ArrayList<>()
+                        );
+                        entries.put(key, entry);
+                    }
+
+                    String coworker = rs.getString("coworker");
+                    if (coworker != null && !entry.coworkers().contains(coworker)) {
+                        entry.coworkers().add(coworker);
+                    }
+                }
+            }
+
+            return new ScheduleResponse(
+                start.toString(),
+                end.toString(),
+                new ArrayList<>(entries.values())
+            );
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to load schedule.",
+                e
+            );
+        }
+    }
+
     public List<StaffResponse> getStaff() {
         String sql = """
             SELECT eid, ename, euser, etype
@@ -309,4 +533,3 @@ public class DBService {
 
     }
 }
-

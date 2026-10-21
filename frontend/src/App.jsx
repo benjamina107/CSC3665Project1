@@ -51,7 +51,7 @@ export default function App() {
           <Route
             path="/change-password"
             element={
-              <RequireAuth>
+              <RequireAuth roles={['admin']}>
                 <ChangePasswordPage />
               </RequireAuth>
             }

@@ -1,5 +1,5 @@
 import { useState,useEffect } from 'react'
-import { Plus, Trash2, KeyRound, Users, Stethoscope, X, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Plus, Trash2, KeyRound, Users, Stethoscope, X, AlertCircle, CheckCircle2, CalendarDays } from 'lucide-react'
 
 function StatCard({ icon: Icon, value, label, color }) {
   return (
@@ -246,6 +246,8 @@ export default function AdminDashboard() {
   const [showAddPanel, setShowAddPanel] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
   const [actionError, setActionError] = useState('')
+  const [scheduleGenerating, setScheduleGenerating] = useState(false)
+  const [scheduleSuccess, setScheduleSuccess] = useState('')
   
 
   const currentList = activeTab === 'doctors' ? doctors : technicians
@@ -298,6 +300,34 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleGenerateSchedule = async () => {
+    if (!window.confirm(
+      'Generate the next 14 days of shifts? Existing assignments in that date range will be replaced.'
+    )) {
+      return
+    }
+
+    setActionError('')
+    setScheduleSuccess('')
+    setScheduleGenerating(true)
+    try {
+      const response = await fetch('/api/admin/schedule/generate', { method: 'POST' })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(
+          errorData.detail ||
+          errorData.message ||
+          'Unable to generate a valid schedule with the current staffing.'
+        )
+      }
+      setScheduleSuccess('The schedule for the next 14 days was generated.')
+    } catch (err) {
+      setActionError(err.message)
+    } finally {
+      setScheduleGenerating(false)
+    }
+  }
+
   useEffect(() => {
     let cancelled = false
 
@@ -342,12 +372,25 @@ export default function AdminDashboard() {
   return (
     <div className="p-8">
       {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
-        <p className="text-gray-500 text-sm mt-1">Manage clinic doctors and technicians</p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
+          <p className="text-gray-500 text-sm mt-1">Manage clinic doctors and technicians</p>
+        </div>
+        <button
+          onClick={handleGenerateSchedule}
+          disabled={scheduleGenerating}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
+        >
+          <CalendarDays size={16} />
+          {scheduleGenerating ? 'Generating…' : 'Generate next 14 days'}
+        </button>
       </div>
       {actionError && (
         <p className="mb-4 text-red-600">{actionError}</p>
+      )}
+      {scheduleSuccess && (
+        <p className="mb-4 text-green-700">{scheduleSuccess}</p>
       )}
 
       {/* Stat cards */}

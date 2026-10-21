@@ -4,20 +4,20 @@ These TODOs describe remaining required behavior and known implementation gaps.
 The document does not prescribe auth tokens or server sessions.
 
 SCHEDULING (page 1)
-TODO: Schedule employees for typically four shifts each week, with at least 10 hours
+DONE: Schedule employees for typically four shifts each week, with at least 10 hours
       between shifts.
-TODO: Ensure no doctor has two surgery days or two overnight shifts in the same week.
-TODO: Cover the stated shifts:
+DONE: Ensure no doctor has two surgery days or two overnight shifts in the same week.
+DONE: Cover the stated shifts:
       Monday-Saturday: Early Morning 7:30am-6:30pm, 8.30 Shift 8:30am-7:30pm,
       Late Doctor 9:30am-8:30pm, plus a surgeon working 7:30am-6:30pm.
       Sunday: Sunday Shift 8am-8pm. Overnight: 8pm-8am.
-TODO: Provide at least one doctor per shift; never two doctors overnight or on Sunday.
-TODO: Distribute the extra doctor shifts with priority for Saturday Early Morning and
+DONE: Provide at least one doctor per shift; never two doctors overnight or on Sunday.
+DONE: Distribute the extra doctor shifts with priority for Saturday Early Morning and
       Friday Late Doctor, then prefer Early Morning shifts for the remaining extras.
-TODO: Give technicians the same shifts as doctors, with at least one technician working
+DONE: Give technicians the same shifts as doctors, with at least one technician working
       with every doctor, only one technician overnight, and two technicians on Sundays.
       Spread the rest of technician scheduling as evenly as possible.
-TODO: Let each employee view their schedule for the next two weeks and see the opposite-role
+DONE: Let each employee view their schedule for the next two weeks and see the opposite-role
       coworkers they will work with. Display doctors' surgery shifts in a different color.
       A table is suggested by the document, not mandatory; the existing UI already uses one.
 
