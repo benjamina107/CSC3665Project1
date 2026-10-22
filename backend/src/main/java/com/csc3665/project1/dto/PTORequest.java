@@ -2,7 +2,7 @@ package com.csc3665.project1.dto;
 
 import java.time.LocalDate;
 
-pubilc record PTORequest(
+public record PTORequest(
     int eid,
     String reason,
     LocalDate startDate,
