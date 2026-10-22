@@ -27,10 +27,7 @@ import com.csc3665.project1.service.DBService;
 @RestController
 @RequestMapping("/api")
 public class ApiController {
-    // Done: /requests/pto returns an immediate PTODecision; /requests/my returns annual usage.
-    // TODO (pp.1-2): /requests/work still returns a plain "awaiting approval" string; make it
-    // return a granted/denied decision with a reason, like /requests/pto.
-    // Implementation note: API paths/DTOs are up to this project; match frontend fetch calls.
+
 
     private final DBService dbService;
 
@@ -103,7 +100,7 @@ public class ApiController {
     }
 
      @PostMapping("/requests/work")
-    public String addWorkRequest(@RequestBody WorkRequest request){
+    public PTODecision addWorkRequest(@RequestBody WorkRequest request){
         return dbService.addWorkRequest(
             request.eid(),
             request.sdate(),

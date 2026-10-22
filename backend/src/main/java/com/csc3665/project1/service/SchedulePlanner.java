@@ -70,6 +70,9 @@ final class SchedulePlanner {
                 .toList();
 
             for (Shift shift : required) {
+                if (hasDoctor(assignments, shift, doctorIds)) {
+                    continue;
+                }
                 int doctorId = selectEmployee(
                     doctorIds, assignments, shift, week, true, unavailable
                 ).orElseThrow(() -> new IllegalStateException(
@@ -196,10 +199,15 @@ final class SchedulePlanner {
         Set<Unavailability> unavailable
     ) {
         for (Shift shift : weekShifts) {
-            int doctorCount = countAssignments(assignments, shift);
-            int technicianCount = shift.block().equals("Overnight") ? 1
+            int pinnedTechnicians = (int) assignments.stream()
+                .filter(a -> a.date().equals(shift.date())
+                    && a.block().equals(shift.block())
+                    && technicianIds.contains(a.employeeId()))
+                .count();
+            int doctorCount = countAssignments(assignments, shift) - pinnedTechnicians;
+            int technicianCount = (shift.block().equals("Overnight") ? 1
                 : shift.block().equals("Sunday Shift") ? 2
-                : doctorCount;
+                : doctorCount) - pinnedTechnicians;
 
             for (int i = 0; i < technicianCount; i++) {
                 int technicianId = selectEmployee(
@@ -269,6 +277,29 @@ final class SchedulePlanner {
                     && assignment.startMinute() < shift.endMinute() + REST_MINUTES
             );
     }
+
+    static boolean conflictsWith(Assignment candidate, List<Assignment> others, boolean doctor) {
+        return others.stream()
+            .filter(o -> o.employeeId() == candidate.employeeId())
+            .anyMatch(o -> {
+                boolean tooClose = candidate.startMinute() < o.endMinute() + REST_MINUTES
+                    && o.startMinute() < candidate.endMinute() + REST_MINUTES;
+                boolean sameWeek = weekStart(o.date()).equals(weekStart(candidate.date()));
+                boolean doubleRole = doctor && sameWeek
+                    && ((candidate.surgery() && o.surgery())
+                        || (candidate.block().equals("Overnight") && o.block().equals("Overnight")));
+                return tooClose || doubleRole;
+            });
+    }
+
+
+    private static boolean hasDoctor(List<Assignment> assignments, Shift shift, List<Integer> doctorIds) {
+    return assignments.stream().anyMatch(a ->
+        a.date().equals(shift.date())
+            && a.block().equals(shift.block())
+            && doctorIds.contains(a.employeeId()));
+    }
+
 
     private static int countWeeklyAssignments(
         int employeeId,

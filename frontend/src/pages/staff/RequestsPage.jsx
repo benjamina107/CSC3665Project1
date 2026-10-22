@@ -2,16 +2,7 @@ import { useState, useEffect } from 'react'
 import { Umbrella, Thermometer, CheckCircle2, XCircle, Clock, AlertCircle, CalendarDays, Info } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
-// Done: balances load from GET /api/requests/my; handleSubmit posts to /api/requests/pto
-// and shows the server's decision.
-// TODO (p.1): Add a UI for work requests (POST /api/requests/work).
-// Implementation: select a real shift and send its key with the employee ID.
-// Implementation note: map UI 'Sick Day' to pto_requests.reason='Sick'.
-// Notes and saved request history are optional; show the immediate backend denial reason.
 
-
-
-// Minimum advance notice: vacation = 21 days, sick = tomorrow (not today)
 function validateRequest(type, startDateStr, endDateStr, balance) {
   const today = new Date()
   const start = new Date(startDateStr)
@@ -48,6 +39,43 @@ function formatDate(isoStr) {
   if (!isoStr) return ''
   const d = new Date(isoStr + 'T00:00:00')
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+const SHIFT_LABELS = {
+  'Early Morning': 'Early Morning (7:30am – 6:30pm)',
+  '8:30 Shift':    '8:30 Shift (8:30am – 7:30pm)',
+  'Late Doctor':   'Late Doctor (9:30am – 8:30pm)',
+  'Sunday Shift':  'Sunday Shift (8am – 8pm)',
+  'Overnight':     'Overnight (8pm – 8am)',
+}
+
+// Shifts that run on a given day: Sundays have a different set from Monday-Saturday.
+function blocksForDate(isoStr) {
+  if (!isoStr) return []
+  const isSunday = new Date(isoStr + 'T00:00:00').getDay() === 0
+  return isSunday
+    ? ['Sunday Shift', 'Overnight']
+    : ['Early Morning', '8:30 Shift', 'Late Doctor', 'Overnight']
+}
+
+// YYYY-MM-DD in the local time zone (toISOString would use UTC).
+function localISO(d) {
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${month}-${day}`
+}
+
+// Work requests can be made for the generated schedule: tomorrow through 13 days out.
+function workDateRange() {
+  const min = new Date(); min.setDate(min.getDate() + 1)
+  const max = new Date(); max.setDate(max.getDate() + 13)
+  return { min: localISO(min), max: localISO(max) }
+}
+
+const TYPE_STYLE = {
+  'Vacation':   { icon: Umbrella,    text: 'text-teal-700', active: 'bg-teal-700 border-teal-700' },
+  'Sick Day':   { icon: Thermometer, text: 'text-rose-600', active: 'bg-rose-500 border-rose-500' },
+  'Work Shift': { icon: Clock,       text: 'text-sky-700',  active: 'bg-sky-600 border-sky-600' },
 }
 
 function BalanceCard({ icon: Icon, iconBg, label, used, total, color }) {
@@ -137,15 +165,69 @@ useEffect(() => {
   const [reqType, setReqType] = useState('Vacation')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [workDate, setWorkDate] = useState('')
+  const [workBlock, setWorkBlock] = useState('')
   const [note, setNote] = useState('')
   const [result, setResult] = useState(null) // { status: 'Approved'|'Denied', message }
 
   const days = daysBetween(startDate, endDate)
   const balance = reqType === 'Vacation' ? data.vacation : data.sick
+  const workRange = workDateRange()
+  const workBlocks = blocksForDate(workDate)
+
+  const submitWorkRequest = async () => {
+    if (!workDate || !workBlock) {
+      setResult({ status: 'Denied', message: 'Please select a date and a shift.' })
+      return
+    }
+
+    try {
+      const response = await fetch('/api/requests/work', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eid: user.id, sdate: workDate, block: workBlock }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => null)
+        throw new Error(err?.message ?? 'Unable to submit request.')
+      }
+
+      // { approved: true/false, message: '...' }
+      const decision = await response.json()
+      const status = decision.approved ? 'Approved' : 'Denied'
+
+      const newRequest = {
+        id: Date.now(),
+        type: 'Work Shift',
+        block: workBlock,
+        startDate: formatDate(workDate),
+        endDate: '—',
+        days: '—',
+        status,
+        deniedReason: decision.approved ? null : decision.message,
+      }
+      setData(prev => ({ ...prev, history: [newRequest, ...prev.history] }))
+
+      setResult({ status, message: decision.message })
+      if (decision.approved) {
+        setWorkDate('')
+        setWorkBlock('')
+        setNote('')
+      }
+    } catch (err) {
+      setResult({ status: 'Denied', message: err.message })
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setResult(null)
+
+    if (reqType === 'Work Shift') {
+      await submitWorkRequest()
+      return
+    }
 
     if (!startDate || !endDate) {
       setResult({ status: 'Denied', message: 'Please select date(s).' })
@@ -206,7 +288,7 @@ useEffect(() => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Time Off Requests</h1>
-        <p className="text-gray-500 text-sm mt-1">Manage your vacation and sick day requests — {user?.name}</p>
+        <p className="text-gray-500 text-sm mt-1">Manage your time off and shift requests — {user?.name}</p>
       </div>
 
       {/* Balance cards */}
@@ -274,27 +356,65 @@ useEffect(() => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Request Type</label>
                 <div className="flex gap-3">
-                  {['Vacation', 'Sick Day'].map(type => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setReqType(type)}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                        reqType === type
-                          ? type === 'Vacation'
-                            ? 'bg-teal-700 border-teal-700 text-white shadow-sm'
-                            : 'bg-rose-500 border-rose-500 text-white shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      {type === 'Vacation' ? <Umbrella size={15} /> : <Thermometer size={15} />}
-                      {type}
-                    </button>
-                  ))}
+                  {['Vacation', 'Sick Day', 'Work Shift'].map(type => {
+                    const TypeIcon = TYPE_STYLE[type].icon
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => { setReqType(type); setResult(null) }}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                          reqType === type
+                            ? `${TYPE_STYLE[type].active} text-white shadow-sm`
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        <TypeIcon size={15} />
+                        {type}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
+              {/* Shift fields (work requests) */}
+              {reqType === 'Work Shift' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
+                    <div className="relative">
+                      <CalendarDays size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      <input
+                        type="date"
+                        value={workDate}
+                        min={workRange.min}
+                        max={workRange.max}
+                        onChange={e => { setWorkDate(e.target.value); setWorkBlock('') }}
+                        required
+                        className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Shift</label>
+                    <select
+                      value={workBlock}
+                      onChange={e => setWorkBlock(e.target.value)}
+                      required
+                      disabled={!workDate}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition disabled:bg-gray-50 disabled:text-gray-400"
+                    >
+                      <option value="">{workDate ? 'Select a shift…' : 'Pick a date first'}</option>
+                      {workBlocks.map(block => (
+                        <option key={block} value={block}>{SHIFT_LABELS[block]}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {/* Date fields */}
+              {reqType !== 'Work Shift' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Date</label>
@@ -324,9 +444,10 @@ useEffect(() => {
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Day count + balance preview */}
-              {startDate && endDate && (
+              {reqType !== 'Work Shift' && startDate && endDate && (
                 <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-600">
                   <Info size={15} className="text-teal-500 flex-shrink-0" />
                   <span>
@@ -361,6 +482,10 @@ useEffect(() => {
                 <div className="flex items-start gap-2 text-xs text-blue-600">
                   <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
                   Sick day requests cannot be for <strong className="mx-1">today</strong>, but can be for any other day.
+                </div>
+                <div className="flex items-start gap-2 text-xs text-blue-600">
+                  <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
+                  Shift requests are for a shift you are not already working, within the next <strong className="mx-1">two weeks</strong>.
                 </div>
                 <div className="flex items-start gap-2 text-xs text-blue-600">
                   <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
@@ -400,9 +525,9 @@ useEffect(() => {
                 {data.history.map(req => (
                   <tr key={req.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-4">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${req.type === 'Vacation' ? 'text-teal-700' : 'text-rose-600'}`}>
-                        {req.type === 'Vacation' ? <Umbrella size={12} /> : <Thermometer size={12} />}
-                        {req.type}
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${TYPE_STYLE[req.type].text}`}>
+                        {(() => { const TypeIcon = TYPE_STYLE[req.type].icon; return <TypeIcon size={12} /> })()}
+                        {req.type}{req.block ? ` · ${req.block}` : ''}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-gray-600">{req.startDate}</td>

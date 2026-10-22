@@ -1,6 +1,6 @@
 # ACME Vet Clinic User Manual
 
-This manual covers startup, account management, schedules, and time-off requests for clinic administrators, doctors, and technicians.
+This manual covers startup, account management, schedules, and time-off and shift requests for clinic administrators, doctors, and technicians.
 
 
 
@@ -18,10 +18,9 @@ This manual covers startup, account management, schedules, and time-off requests
 
 ### Sign in
 
-1. Open the website. The login page appears with a teal panel on the left and a sign-in form on the right.
+1. Open the website.
 2. Enter your **Username** and **Password**. Passwords are case-sensitive.
-3. Use the eye icon to show or hide the password.
-4. Select **Sign In**.
+3. Select **Sign In**.
 
 Administrators are taken to **Staff Management** (or to **Change Your Password** if this is their first login). Doctors and technicians are taken to **My Schedule**.
 
@@ -35,7 +34,7 @@ When an administrator signs in for the first time, the application opens **Chang
 2. Enter the same value in **Confirm Password**. The form shows **Passwords match** when the two fields are identical.
 3. Select **Set New Password & Continue**.
 
-The new password is saved and the first-login flag is cleared. Use the new password on every future login.
+The new password is saved. Use the new password on every future login.
 
 
 
@@ -97,7 +96,7 @@ Select **My Schedule** in the sidebar. The page loads your shifts for today thro
 2. Find a row by day and date, then read its shift type, hours, and coworkers.
 3. Use the color legend in the top-right of the summary bar to identify shift types. Surgery shifts are highlighted in amber. A **Day Off** row means no shift is assigned for that day.
 
-Doctors see their accompanying technicians. Technicians see the doctors they work alongside. The schedule reflects whatever is currently stored in the database; it updates automatically when an administrator regenerates it.
+Doctors see their accompanying technicians. Technicians see the doctors they work alongside. The schedule reflects whatever is currently stored in the database; it updates automatically when an administrator regenerates it or when a request you or a coworker made is approved.
 
 ### Shift reference
 
@@ -118,32 +117,50 @@ At least one technician accompanies each doctor on a shift. Overnight has one te
 
 
 
-## 4. Doctor or technician: time-off requests
+## 4. Doctor or technician: requests
 
-Select **Time Off Requests** in the sidebar.
+Select **Time Off Requests** in the sidebar. From this page you can ask for vacation, ask for a sick day, or ask to work a particular shift. Every request is decided immediately, and the page tells you whether it was approved or denied and why.
 
 ### Check your balances
 
-The **Vacation Days** and **Sick Days** cards at the top of the page show how many days you have used and how many remain for the calendar year. Each employee receives eight vacation days and four sick days per year.
+The **Vacation Days** and **Sick Days** cards at the top of the page show how many days you have used and how many remain for the calendar year. Each employee receives eight vacation days and four sick days per year. Only approved requests count toward your balance.
 
-### Submit a request
+### Request vacation or a sick day
 
 1. Open the **New Request** tab (selected by default).
-2. Select **Vacation** or **Sick Day**.
+2. Under **Request Type**, select **Vacation** or **Sick Day**.
 3. Choose a **Start Date** and **End Date**. For a single day off, use the same date for both. Every calendar day in the range is counted; the total is shown in the preview row below the date fields.
-4. Optionally enter **Notes**.
-5. Select **Submit Request**.
-6. Read the **Request Approved** or **Request Denied** banner and its explanation.
+4. Select **Submit Request**.
+5. Read the **Request Approved** or **Request Denied** banner and its explanation.
 
-On approval, your balance is updated immediately and the request appears at the top of your history.
+If a request is approved, your balance updates right away. If your time off falls within the next two weeks, the schedule is rebuilt so that you no longer have shifts on those days and your shifts are covered. Time off further ahead is saved and will be respected when the schedule for those dates is created.
 
-### Request policies
+### Request to work a shift
 
-- **Vacation:** must be submitted at least three weeks before the start date.
-- **Sick Day:** cannot be submitted for today; any other date is permitted.
-- A request is denied if it would exceed your remaining balance.
-- Requests are processed immediately on a first-come, first-served basis.
+Use this if you would like to work a shift you are not currently assigned.
+
+1. Open the **New Request** tab and select **Work Shift** under **Request Type**.
+2. Choose a **Date**. Only dates from tomorrow through the next 13 days can be selected, because those are the days that have a schedule.
+3. Choose a **Shift**. The list shows the shifts that run on that day with their hours: Monday to Saturday offers Early Morning, 8:30 Shift, Late Doctor, and Overnight; Sunday offers Sunday Shift and Overnight.
+4. Select **Submit Request**.
+5. Read the **Request Approved** or **Request Denied** banner and its explanation.
+
+If a shift request is approved, you are added to that shift and the schedule is rebuilt around it. Because the whole two-week schedule is rebuilt, other shifts, including some of your own, may change. Check **My Schedule** after an approval.
+
+A shift you request does not have to keep you to four shifts that week, but the usual rest and weekly rules still apply, as described below.
+
+### Request rules
+
+- **Vacation:** must be requested at least three weeks before the start date.
+- **Sick day:** cannot be requested for today; any other date is permitted.
+- **Calendar year:** a time-off request cannot run across two calendar years. Submit the days in each year as separate requests.
+- **Balance:** a request is denied if it would use more days than you have left this year.
+- **Overlap:** a request is denied if it overlaps time off that was already approved for you.
+- **Shift requests:** you can only request a shift you are not already working, and not on a day you have approved time off.
+- **First come, first served:** requests are decided in the order they are submitted. A request that is possible is approved; a request that conflicts with one that was already approved is denied.
 
 ### Review request history
 
-Select **History** to view all past requests. Each row shows the request type, start date, end date, number of days, status (Approved / Denied / Pending), and the denial reason where applicable. Requests denied by the form before submission are not added to history.
+Select **History** to see the requests you have made. Each row shows the request type (and the shift, for shift requests), the date or dates, number of days, status (Approved / Denied), and the reason when a request was denied.
+
+The History tab only lists requests made since you opened the page. It starts empty when you reload the page or sign in again, although your approved requests and balances are kept. A form that is incomplete (for example, no date chosen) shows a message but is not added to history.

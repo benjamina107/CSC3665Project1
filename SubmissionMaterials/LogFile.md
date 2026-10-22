@@ -11,3 +11,4 @@
 | Sushant | Finished the Scheduling | Oct 18 | 2 hours |
 | Wieland | Added PTO Req and Res DTOs, wired frontend functionality for PTO, fixed merge conflicts | Oct 20 | 3 hours |
 | Wieland | Finished PTO and Work Request functionality in DBService and routes in Spring Boot Server | Oct 21 | 2 hours |
+| Ben | Wrapped Up Project | Oct 21 - 22 | 4 Hours |

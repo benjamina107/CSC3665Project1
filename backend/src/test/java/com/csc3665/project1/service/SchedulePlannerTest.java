@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
@@ -126,6 +127,146 @@ class SchedulePlannerTest {
                 && assignment.date().equals(START)
                 && !assignment.block().equals("Overnight")
         ));
+    }
+
+    @Test
+    void neverAssignsAnEmployeeOnADateTheyAreUnavailable() {
+        LocalDate off = START.plusDays(2);
+        Set<SchedulePlanner.Unavailability> unavailable = Set.of(
+            new SchedulePlanner.Unavailability(DOCTORS.get(0), off),
+            new SchedulePlanner.Unavailability(TECHNICIANS.get(0), off)
+        );
+
+        List<SchedulePlanner.Assignment> assignments = SchedulePlanner.generate(
+            START, 14, DOCTORS, TECHNICIANS, List.of(), unavailable
+        );
+
+        assertFalse(assignments.stream().anyMatch(assignment ->
+            assignment.date().equals(off)
+                && (assignment.employeeId() == DOCTORS.get(0)
+                    || assignment.employeeId() == TECHNICIANS.get(0))
+        ));
+        assertFalse(assignments.isEmpty());
+    }
+
+    @Test
+    void failsWhenEveryDoctorIsUnavailableOnOneDay() {
+        LocalDate off = START.plusDays(2);
+        Set<SchedulePlanner.Unavailability> unavailable = DOCTORS.stream()
+            .map(id -> new SchedulePlanner.Unavailability(id, off))
+            .collect(Collectors.toSet());
+
+        IllegalStateException error = assertThrows(
+            IllegalStateException.class,
+            () -> SchedulePlanner.generate(START, 14, DOCTORS, TECHNICIANS, List.of(), unavailable)
+        );
+
+        assertTrue(error.getMessage().contains("Not enough doctors"));
+    }
+
+    @Test
+    void aPinnedOvernightDoctorIsTheOnlyOvernightDoctorThatNight() {
+        LocalDate night = START.plusDays(1);
+        SchedulePlanner.Assignment pinned = SchedulePlanner.existingAssignment(
+            DOCTORS.get(4), night, "Overnight", false
+        );
+
+        List<SchedulePlanner.Assignment> assignments = SchedulePlanner.generate(
+            START, 14, DOCTORS, TECHNICIANS, List.of(pinned)
+        );
+
+        assertTrue(assignments.stream().anyMatch(assignment ->
+            assignment.employeeId() == DOCTORS.get(4)
+                && assignment.date().equals(night)
+                && assignment.block().equals("Overnight")));
+        assertEquals(1, countDoctors(assignments, night, "Overnight"));
+    }
+
+    @Test
+    void aPinnedOvernightTechnicianIsTheOnlyOvernightTechnicianThatNight() {
+        LocalDate night = START.plusDays(1);
+        SchedulePlanner.Assignment pinned = SchedulePlanner.existingAssignment(
+            TECHNICIANS.get(5), night, "Overnight", false
+        );
+
+        List<SchedulePlanner.Assignment> assignments = SchedulePlanner.generate(
+            START, 14, DOCTORS, TECHNICIANS, List.of(pinned)
+        );
+
+        List<SchedulePlanner.Assignment> technicians = assignments.stream()
+            .filter(assignment -> assignment.date().equals(night)
+                && assignment.block().equals("Overnight")
+                && TECHNICIANS.contains(assignment.employeeId()))
+            .toList();
+        assertEquals(1, technicians.size());
+        assertEquals(TECHNICIANS.get(5), technicians.get(0).employeeId());
+    }
+
+    @Test
+    void aPinnedSundayTechnicianCountsTowardTheTwoTechnicians() {
+        LocalDate sunday = START.plusDays(6);
+        SchedulePlanner.Assignment pinned = SchedulePlanner.existingAssignment(
+            TECHNICIANS.get(7), sunday, "Sunday Shift", false
+        );
+
+        List<SchedulePlanner.Assignment> assignments = SchedulePlanner.generate(
+            START, 14, DOCTORS, TECHNICIANS, List.of(pinned)
+        );
+
+        List<Integer> technicians = assignments.stream()
+            .filter(assignment -> assignment.date().equals(sunday)
+                && assignment.block().equals("Sunday Shift")
+                && TECHNICIANS.contains(assignment.employeeId()))
+            .map(SchedulePlanner.Assignment::employeeId)
+            .toList();
+        assertEquals(2, technicians.size());
+        assertTrue(technicians.contains(TECHNICIANS.get(7)));
+    }
+
+    @Test
+    void aPinnedSurgeryDoctorKeepsThatShiftAndGetsNoSecondSurgeryThatWeek() {
+        LocalDate wednesday = START.plusDays(2);
+        SchedulePlanner.Assignment pinned = SchedulePlanner.existingAssignment(
+            DOCTORS.get(3), wednesday, "Early Morning", true
+        );
+
+        List<SchedulePlanner.Assignment> assignments = SchedulePlanner.generate(
+            START, 14, DOCTORS, TECHNICIANS, List.of(pinned)
+        );
+
+        assertTrue(assignments.stream().anyMatch(assignment ->
+            assignment.employeeId() == DOCTORS.get(3)
+                && assignment.date().equals(wednesday)
+                && assignment.block().equals("Early Morning")));
+        assertEquals(1, assignments.stream()
+            .filter(assignment -> assignment.employeeId() == DOCTORS.get(3)
+                && assignment.surgery()
+                && !assignment.date().isAfter(START.plusDays(6)))
+            .count());
+    }
+
+    @Test
+    void conflictsWithFlagsRestViolationsAndASecondOvernightForDoctors() {
+        SchedulePlanner.Assignment monNight = SchedulePlanner.existingAssignment(
+            1, START, "Overnight", false
+        );
+        SchedulePlanner.Assignment tueMorning = SchedulePlanner.existingAssignment(
+            1, START.plusDays(1), "Early Morning", true
+        );
+        SchedulePlanner.Assignment thuNight = SchedulePlanner.existingAssignment(
+            1, START.plusDays(3), "Overnight", false
+        );
+        SchedulePlanner.Assignment otherDoctor = SchedulePlanner.existingAssignment(
+            2, START.plusDays(1), "Early Morning", true
+        );
+
+        // Overnight ends Tuesday 8:00, Early Morning starts Tuesday 7:30.
+        assertTrue(SchedulePlanner.conflictsWith(tueMorning, List.of(monNight), true));
+        // A second overnight in the same week: a doctor rule only.
+        assertTrue(SchedulePlanner.conflictsWith(thuNight, List.of(monNight), true));
+        assertFalse(SchedulePlanner.conflictsWith(thuNight, List.of(monNight), false));
+        // Someone else's shift never conflicts.
+        assertFalse(SchedulePlanner.conflictsWith(otherDoctor, List.of(monNight), true));
     }
 
     private long countDoctors(

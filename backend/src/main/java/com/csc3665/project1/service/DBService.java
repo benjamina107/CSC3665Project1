@@ -32,14 +32,6 @@ import com.csc3665.project1.dto.StaffResponse;
 
 @Service
 public class DBService {
-    // Done: addPTO decides time off on submission (notice, sick-today, overlap, balance,
-    // trial-schedule coverage), saves it, and regenerates the schedule when it applies.
-    // getPTO reports calendar-year usage against eight vacation and four sick days.
-    // TODO (p.1-2): addWorkRequest still only stores the request (approved=false). It needs
-    // decision logic: a shift the employee isn't already on, conflicts with granted requests,
-    // coverage, then rearranging the schedule.
-    // Implementation notes: requests + pto_requests/work_requests hold request data.
-    // pto_requests.reason uses Sick/Vacation. Persist usage/schedule changes on approval.
 
     private final DataSource dataSource;
     private static final int VACATION_DAYS = 8;
@@ -239,6 +231,7 @@ public class DBService {
                         start,
                         end
                     );
+                existingAssignments.addAll(loadPinnedWork(connection, start, end));
                 Set<SchedulePlanner.Unavailability> unavailable =
                     loadUnavailability(connection, start, end);
                 List<SchedulePlanner.Assignment> assignments;
@@ -304,6 +297,34 @@ public class DBService {
                 e
             );
         }
+    }
+
+    private List<SchedulePlanner.Assignment> loadPinnedWork(
+        Connection connection,
+        LocalDate from,
+        LocalDate to
+    ) throws SQLException {
+        String sql = """
+            SELECT r.eid, w.sdate, w.block, s.surgery
+            FROM requests r, work_requests w, shifts s
+            WHERE w.rid = r.rid AND s.sdate = w.sdate AND s.block = w.block AND r.approved = true AND w.sdate BETWEEN ? AND ?
+        """;
+        List<SchedulePlanner.Assignment> pinned = new ArrayList<>();
+        try (PreparedStatement st = connection.prepareStatement(sql)) {
+            st.setDate(1, java.sql.Date.valueOf(from));
+            st.setDate(2, java.sql.Date.valueOf(to));
+            try (ResultSet rs = st.executeQuery()) {
+                while (rs.next()) {
+                    pinned.add(SchedulePlanner.existingAssignment(
+                        rs.getInt("eid"),
+                        rs.getDate("sdate").toLocalDate(),
+                        rs.getString("block"),
+                        rs.getBoolean("surgery")
+                    ));
+                }
+            }
+        }
+        return pinned;
     }
 
 
@@ -503,30 +524,50 @@ public class DBService {
     }
 
     public void removeStaff(int eid) {
-    String sql = """
-        DELETE FROM employees
-        WHERE eid = ? AND LOWER(etype) IN ('doctor', 'technician')
-        """;
+        // working and requests reference employees without ON DELETE CASCADE, so an employee
+        // who has been scheduled or has made requests can't be deleted until those rows go.
+        // Deleting a request cascades to its pto_requests / work_requests row.
+        String staff = "SELECT eid FROM employees WHERE eid = ? AND LOWER(etype) IN ('doctor', 'technician')";
+        String deleteWorking = "DELETE FROM working WHERE eid IN (" + staff + ")";
+        String deleteRequests = "DELETE FROM requests WHERE eid IN (" + staff + ")";
+        String deleteEmployee = """
+            DELETE FROM employees
+            WHERE eid = ? AND LOWER(etype) IN ('doctor', 'technician')
+            """;
 
-    try (
-        Connection connection = dataSource.getConnection();
-        PreparedStatement statement = connection.prepareStatement(sql)
-    ) {
-        statement.setInt(1, eid);
-
-        if (statement.executeUpdate() == 0) {
+        try (Connection connection = dataSource.getConnection()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try {
+                for (String sql : List.of(deleteWorking, deleteRequests)) {
+                    try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                        statement.setInt(1, eid);
+                        statement.executeUpdate();
+                    }
+                }
+                try (PreparedStatement statement = connection.prepareStatement(deleteEmployee)) {
+                    statement.setInt(1, eid);
+                    if (statement.executeUpdate() == 0) {
+                        throw new ResponseStatusException(
+                            HttpStatus.NOT_FOUND, "Staff member not found."
+                        );
+                    }
+                }
+                connection.commit();
+            } catch (SQLException | RuntimeException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+            }
+        } catch (SQLException e) {
             throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND, "Staff member not found."
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to remove staff.",
+                e
             );
         }
-    } catch (SQLException e) {
-        throw new ResponseStatusException(
-            HttpStatus.INTERNAL_SERVER_ERROR,
-            "Unable to remove staff.",
-            e
-        );
     }
-}
 
     public PTOResponse getPTO(int eid){
         LocalDate yearStart = LocalDate.now().withDayOfYear(1);
@@ -648,12 +689,95 @@ public class DBService {
         }
 
         try {
-            SchedulePlanner.generate(monday, dayCount, doctors, technicians, List.of(), unavailable);
+            SchedulePlanner.generate(monday, dayCount, doctors, technicians, loadPinnedWork(connection, monday, sunday), unavailable);
             return null;
         } catch (IllegalStateException e) {
             return "We will be short on staff if we grant your request. " + e.getMessage();
         }
     }
+
+    private Boolean shiftSurgery(Connection connection, LocalDate sDate, String block) throws SQLException {
+        String sql = "SELECT surgery FROM shifts WHERE sdate = ? AND block = ?";
+        try (PreparedStatement st = connection.prepareStatement(sql)) {
+            st.setDate(1, java.sql.Date.valueOf(sDate));
+            st.setString(2, block);
+            try (ResultSet rs = st.executeQuery()) {
+                return rs.next() ? rs.getBoolean("surgery") : null;
+            }
+        }
+    }
+
+    //REturns null if no problem otherwise returns a string describing the problem
+    private String workRequestProblem(
+        Connection connection,
+        int eid,
+        LocalDate sDate,
+        String block,
+        boolean surgery
+    ) throws SQLException {
+        String sql = "SELECT eid FROM employees WHERE LOWER(etype) = ? ORDER BY eid";
+        List<Integer> doctors = loadEmployeeIds(connection, sql, "doctor");
+        List<Integer> technicians = loadEmployeeIds(connection, sql, "technician");
+        boolean doctor = doctors.contains(eid);
+
+        // 1. Already working that shift
+        String workingSql = "SELECT COUNT(*) AS n FROM working WHERE eid = ? AND sdate = ? AND block = ?";
+        try (PreparedStatement st = connection.prepareStatement(workingSql)) {
+            st.setInt(1, eid);
+            st.setDate(2, java.sql.Date.valueOf(sDate));
+            st.setString(3, block);
+            try (ResultSet rs = st.executeQuery()) {
+                rs.next();
+                if (rs.getInt("n") > 0) {
+                    return "You are already scheduled for that shift.";
+                }
+            }
+        }
+
+        // 2. Approved time off that day
+        if (overlapsApproved(connection, eid, sDate, sDate)) {
+            return "You have time off on that date.";
+        }
+
+        // 3. Conflicts with shift requests already granted (rest rule, double surgery/overnight)
+        SchedulePlanner.Assignment candidate = SchedulePlanner.existingAssignment(eid, sDate, block, surgery);
+        List<SchedulePlanner.Assignment> pinned =
+            loadPinnedWork(connection, sDate.minusDays(7), sDate.plusDays(7));
+        if (SchedulePlanner.conflictsWith(candidate, pinned, doctor)) {
+            return "Your request cannot be granted because it conflicts with a shift request that was already granted.";
+        }
+
+        // 4. Shifts with a fixed headcount can't take more granted requests than that
+        boolean singleDoctor = block.equals("Overnight") || block.equals("Sunday Shift");
+        int limit = doctor
+            ? (singleDoctor ? 1 : Integer.MAX_VALUE)
+            : (block.equals("Overnight") ? 1 : block.equals("Sunday Shift") ? 2 : Integer.MAX_VALUE);
+        List<Integer> sameRole = doctor ? doctors : technicians;
+        long alreadyGranted = pinned.stream()
+            .filter(a -> a.date().equals(sDate) && a.block().equals(block)
+                && sameRole.contains(a.employeeId()))
+            .count();
+        if (alreadyGranted >= limit) {
+            return "That shift is already full of " + (doctor ? "doctors" : "technicians")
+                + " from shift requests that were granted.";
+        }
+
+        // 5. Trial schedule with this request locked in
+        LocalDate today = LocalDate.now();
+        List<SchedulePlanner.Assignment> trial =
+            new ArrayList<>(loadPinnedWork(connection, today, today.plusDays(13)));
+        trial.add(candidate);
+        try {
+            SchedulePlanner.generate(
+                today, 14, doctors, technicians, trial,
+                loadUnavailability(connection, today, today.plusDays(13))
+            );
+            return null;
+        } catch (IllegalStateException e) {
+            return "We will be short on staff if we grant your request. " + e.getMessage();
+        }
+    }
+
 
 
     // check if an employee already got som time off during this period
@@ -766,70 +890,69 @@ public class DBService {
         }
     }
 
-    public String addWorkRequest(
-        int eid,
-        LocalDate sDate,
-        String block
-    ){
+    public PTODecision addWorkRequest(int eid, LocalDate sDate, String block) {
         if (sDate == null || block == null || block.isBlank()) {
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST, "Select a shift date and block."
-            );
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select a shift date and block.");
         }
 
-        String shiftSql = "SELECT * FROM shifts WHERE sdate = ? AND block = ?";
-        String requestSql = """
-            INSERT INTO requests (eid, approved, request_timestamp)
-            VALUES (?, false, CURRENT_TIMESTAMP)
-            RETURNING rid
-            """;
-        String workSql = "INSERT INTO work_requests (rid, sdate, block) VALUES (?, ?, ?)";
-
+        LocalDate today = LocalDate.now();
         try (Connection connection = dataSource.getConnection()) {
-            boolean originalAutoCommit = connection.getAutoCommit();
-            connection.setAutoCommit(false);
+            Boolean surgery = shiftSurgery(connection, sDate, block);
+            if (surgery == null) {
+                return new PTODecision(false,
+                    "That shift is not on the schedule. Pick a date in the next two weeks and a shift that runs that day.");
+            }
+            if (!sDate.isAfter(today)) {
+                return new PTODecision(false, "A shift request must be for a future date.");
+            }
 
+            String denialReason = workRequestProblem(connection, eid, sDate, block, surgery);
+            boolean approved = (denialReason == null);
+
+            String requestSql = """
+                INSERT INTO requests (eid, approved, request_timestamp)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                RETURNING rid
+            """;
+            String workSql = "INSERT INTO work_requests (rid, sdate, block) VALUES (?, ?, ?)";
+
+            connection.setAutoCommit(false);
             try (
-                PreparedStatement shiftStatement = connection.prepareStatement(shiftSql);
                 PreparedStatement requestStatement = connection.prepareStatement(requestSql);
                 PreparedStatement workStatement = connection.prepareStatement(workSql)
             ) {
-                shiftStatement.setDate(1, java.sql.Date.valueOf(sDate));
-                shiftStatement.setString(2, block);
-                try (ResultSet rs = shiftStatement.executeQuery()) {
-                    if (!rs.next()) {
-                        throw new ResponseStatusException(
-                            HttpStatus.NOT_FOUND, "The selected shift does not exist."
-                        );
-                    }
-                }
-
                 requestStatement.setInt(1, eid);
+                requestStatement.setBoolean(2, approved);
                 int rid;
                 try (ResultSet rs = requestStatement.executeQuery()) {
-                    if (!rs.next()) {
-                        throw new SQLException("No request ID was returned.");
-                    }
+                    rs.next();
                     rid = rs.getInt("rid");
                 }
-
                 workStatement.setInt(1, rid);
                 workStatement.setDate(2, java.sql.Date.valueOf(sDate));
                 workStatement.setString(3, block);
                 workStatement.executeUpdate();
-
                 connection.commit();
-                return "Work request submitted. Awaiting approval.";
             } catch (SQLException | RuntimeException e) {
                 connection.rollback();
                 throw e;
-            } finally {
-                connection.setAutoCommit(originalAutoCommit);
             }
+
+            if (!approved) {
+                return new PTODecision(false, denialReason);
+            }
+
+            String note;
+            try {
+                generateSchedule();
+                note = " Your schedule has been updated.";
+            } catch (ResponseStatusException e) {
+                note = " Your request is saved, but the schedule could not be rebuilt yet: " + e.getReason();
+            }
+            return new PTODecision(true, "Approved: you are scheduled for " + block + " on " + sDate + "." + note);
         } catch (SQLException e) {
-            throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR, "Unable to submit work request.", e
-            );
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to submit work request.", e);
         }
     }
+
 }
