@@ -25,6 +25,7 @@ final class SchedulePlanner {
         return generate(start, dayCount, doctorIds, technicianIds, List.of());
     }
 
+
     static List<Assignment> generate(
         LocalDate start,
         int dayCount,
@@ -32,6 +33,19 @@ final class SchedulePlanner {
         List<Integer> technicianIds,
         List<Assignment> existingAssignments
     ) {
+        return generate(start, dayCount, doctorIds, technicianIds, existingAssignments, Set.of());
+    }
+
+
+    static List<Assignment> generate(
+        LocalDate start,
+        int dayCount,
+        List<Integer> doctorIds,
+        List<Integer> technicianIds,
+        List<Assignment> existingAssignments,
+        Set<Unavailability> unavailable
+    ) {
+
         if (doctorIds.isEmpty()) {
             throw new IllegalStateException("Add at least one doctor before generating a schedule.");
         }
@@ -57,7 +71,7 @@ final class SchedulePlanner {
 
             for (Shift shift : required) {
                 int doctorId = selectEmployee(
-                    doctorIds, assignments, shift, week, true
+                    doctorIds, assignments, shift, week, true, unavailable
                 ).orElseThrow(() -> new IllegalStateException(
                     "Not enough doctors to cover " + shift.block() + " on " + shift.date()
                         + " while maintaining rest and weekly limits."
@@ -65,8 +79,8 @@ final class SchedulePlanner {
                 assignments.add(shift.assignTo(doctorId));
             }
 
-            addExtraDoctorShifts(weekShifts, doctorIds, assignments, week);
-            addTechnicianShifts(weekShifts, technicianIds, assignments, week);
+            addExtraDoctorShifts(weekShifts, doctorIds, assignments, week, unavailable);
+            addTechnicianShifts(weekShifts, technicianIds, assignments, week, unavailable);
         });
         LocalDate endExclusive = start.plusDays(dayCount);
         return assignments.stream()
@@ -125,7 +139,8 @@ final class SchedulePlanner {
         List<Shift> weekShifts,
         List<Integer> doctorIds,
         List<Assignment> assignments,
-        LocalDate week
+        LocalDate week,
+        Set<Unavailability> unavailable
     ) {
         int currentAssignments = (int) assignments.stream()
             .filter(assignment -> doctorIds.contains(assignment.employeeId())
@@ -160,7 +175,7 @@ final class SchedulePlanner {
                 if (remaining == 0) {
                     break;
                 }
-                var employee = selectEmployee(doctorIds, assignments, shift, week, true);
+                var employee = selectEmployee(doctorIds, assignments, shift, week, true, unavailable);
                 if (employee.isPresent()) {
                     assignments.add(shift.assignTo(employee.get()));
                     remaining--;
@@ -177,7 +192,8 @@ final class SchedulePlanner {
         List<Shift> weekShifts,
         List<Integer> technicianIds,
         List<Assignment> assignments,
-        LocalDate week
+        LocalDate week,
+        Set<Unavailability> unavailable
     ) {
         for (Shift shift : weekShifts) {
             int doctorCount = countAssignments(assignments, shift);
@@ -187,7 +203,7 @@ final class SchedulePlanner {
 
             for (int i = 0; i < technicianCount; i++) {
                 int technicianId = selectEmployee(
-                    technicianIds, assignments, shift, week, false
+                    technicianIds, assignments, shift, week, false, unavailable
                 ).orElseThrow(() -> new IllegalStateException(
                     "Not enough technicians to cover " + shift.block() + " on " + shift.date()
                         + " while maintaining 10 hours between shifts."
@@ -202,7 +218,8 @@ final class SchedulePlanner {
         List<Assignment> assignments,
         Shift shift,
         LocalDate week,
-        boolean doctor
+        boolean doctor,
+        Set<Unavailability> unavailable
     ) {
         Set<Integer> assignedOnShift = assignments.stream()
             .filter(assignment -> assignment.date().equals(shift.date())
@@ -212,6 +229,7 @@ final class SchedulePlanner {
 
         return employees.stream()
             .filter(id -> !assignedOnShift.contains(id))
+            .filter(id -> !unavailable.contains(new Unavailability(id, shift.date())))
             .filter(id -> doctor ? doctorEligible(id, shift, week, assignments)
                 : restCompatible(id, shift, assignments))
             .min(Comparator
@@ -288,6 +306,12 @@ final class SchedulePlanner {
         long startMinute,
         long endMinute
     ) {}
+
+    record Unavailability(
+        int employeeId, 
+        LocalDate date
+    ) {}
+
 
     private record Shift(
         LocalDate date,

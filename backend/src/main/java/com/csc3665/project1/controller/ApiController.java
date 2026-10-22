@@ -1,9 +1,25 @@
 package com.csc3665.project1.controller;
-import com.csc3665.project1.service.DBService;
-import com.csc3665.project1.dto.*;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
+
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.csc3665.project1.dto.LoginResponse;
+import com.csc3665.project1.dto.PTODecision;
+import com.csc3665.project1.dto.PTORequest;
+import com.csc3665.project1.dto.PTOResponse;
+import com.csc3665.project1.dto.ScheduleResponse;
+import com.csc3665.project1.dto.StaffRequest;
+import com.csc3665.project1.dto.StaffResponse;
+import com.csc3665.project1.dto.WorkRequest;
+import com.csc3665.project1.service.DBService;
 
 
 
@@ -11,8 +27,9 @@ import java.util.List;
 @RestController
 @RequestMapping("/api")
 public class ApiController {
-    // TODO (pp.1-2): Accept work/PTO requests, return immediate decisions/reasons,
-    // and provide annual vacation/sick usage.
+    // Done: /requests/pto returns an immediate PTODecision; /requests/my returns annual usage.
+    // TODO (pp.1-2): /requests/work still returns a plain "awaiting approval" string; make it
+    // return a granted/denied decision with a reason, like /requests/pto.
     // Implementation note: API paths/DTOs are up to this project; match frontend fetch calls.
 
     private final DBService dbService;
@@ -76,7 +93,7 @@ public class ApiController {
     }
 
     @PostMapping("/requests/pto")
-    public String addPTO(@RequestBody PTORequest request){
+    public PTODecision addPTO(@RequestBody PTORequest request){
         return dbService.addPTO(
             request.eid(),
             request.reason(),

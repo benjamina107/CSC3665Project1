@@ -3,36 +3,18 @@ Source: supplied Project 1.docx (1).pdf, pages 1-2.
 These TODOs describe remaining required behavior and known implementation gaps.
 The document does not prescribe auth tokens or server sessions.
 
-SCHEDULING (page 1)
-DONE: Schedule employees for typically four shifts each week, with at least 10 hours
-      between shifts.
-DONE: Ensure no doctor has two surgery days or two overnight shifts in the same week.
-DONE: Cover the stated shifts:
-      Monday-Saturday: Early Morning 7:30am-6:30pm, 8.30 Shift 8:30am-7:30pm,
-      Late Doctor 9:30am-8:30pm, plus a surgeon working 7:30am-6:30pm.
-      Sunday: Sunday Shift 8am-8pm. Overnight: 8pm-8am.
-DONE: Provide at least one doctor per shift; never two doctors overnight or on Sunday.
-DONE: Distribute the extra doctor shifts with priority for Saturday Early Morning and
-      Friday Late Doctor, then prefer Early Morning shifts for the remaining extras.
-DONE: Give technicians the same shifts as doctors, with at least one technician working
-      with every doctor, only one technician overnight, and two technicians on Sundays.
-      Spread the rest of technician scheduling as evenly as possible.
-DONE: Let each employee view their schedule for the next two weeks and see the opposite-role
-      coworkers they will work with. Display doctors' surgery shifts in a different color.
-      A table is suggested by the document, not mandatory; the existing UI already uses one.
-
-WORK AND TIME-OFF REQUESTS (pages 1-2)
-TODO: Allow doctors and technicians to request the dates/times they work or take time off.
-TODO: Allow eight vacation days and four sick days per employee per calendar year, track
-      everyone's usage, and let each employee see how much they have used.
-TODO: Process requests first-come, first-served. Grant feasible requests and rearrange the
-      schedule accordingly; deny requests that conflict with previously granted requests.
-TODO: Immediately report whether a request is granted or denied and explain any denial.
-TODO: Require vacation requests at least three weeks in advance.
-TODO: Reject sick-day requests for today; the document allows any other day.
+TODO: Allow doctors and technicians to request the dates/times they WORK (work requests).
+      Needs a UI to pick a shift (RequestsPage) and decision logic in DBService.addWorkRequest:
+      grant if feasible and rearrange the schedule, otherwise deny with a reason (including
+      "conflicts with previous shift requests that were granted" and "short on staff").
+      Assumptions: the shift must be one the employee is not already on; the four-shift
+      target is not a hard limit.
 
 SUBMISSION (page 2)
-TODO: FINISH UserManual explaining use of the system, including initial logins/passwords.
+TODO: FINISH UserManual explaining use of the system, including initial logins/passwords
+      (add work requests once built).
 TODO: CONTINUE TO WRITE IN LogFile recording who did what and how much time it took.
 TODO: Write any more Assumptions describing assumptions made and clarify them with the instructor
+      (work requests: shift not already worked, four-shift target not a hard limit; sick and
+      vacation days affect scheduling the same way; two-week schedule window).
 TODO: ZIP the project and required files for the team's Canvas submission.

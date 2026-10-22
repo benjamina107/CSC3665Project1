@@ -1,30 +1,43 @@
 package com.csc3665.project1.service;
-import com.csc3665.project1.dto.*;
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.format.TextStyle;
-import java.time.temporal.TemporalAdjusters;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.format.TextStyle;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import org.springframework.stereotype.Service;
+import java.util.Map;
+import java.util.Set;
+
+import javax.sql.DataSource;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.csc3665.project1.dto.LoginResponse;
+import com.csc3665.project1.dto.PTODecision;
+import com.csc3665.project1.dto.PTOResponse;
+import com.csc3665.project1.dto.ScheduleEntry;
+import com.csc3665.project1.dto.ScheduleResponse;
+import com.csc3665.project1.dto.StaffResponse;
+
 
 @Service
 public class DBService {
-    // TODO (pp.1-2): Allow requests for work dates/times and time off. Track/display
-    // calendar-year usage against eight vacation days and four sick days per employee.
-    // TODO (p.2): Process first-come, first-served; grant feasible requests and rearrange
-    // the schedule, deny conflicts with earlier granted requests, and immediately explain
-    // denials. Require three weeks' vacation notice; sick days cannot be today.
+    // Done: addPTO decides time off on submission (notice, sick-today, overlap, balance,
+    // trial-schedule coverage), saves it, and regenerates the schedule when it applies.
+    // getPTO reports calendar-year usage against eight vacation and four sick days.
+    // TODO (p.1-2): addWorkRequest still only stores the request (approved=false). It needs
+    // decision logic: a shift the employee isn't already on, conflicts with granted requests,
+    // coverage, then rearranging the schedule.
     // Implementation notes: requests + pto_requests/work_requests hold request data.
     // pto_requests.reason uses Sick/Vacation. Persist usage/schedule changes on approval.
 
@@ -226,11 +239,13 @@ public class DBService {
                         start,
                         end
                     );
+                Set<SchedulePlanner.Unavailability> unavailable =
+                    loadUnavailability(connection, start, end);
                 List<SchedulePlanner.Assignment> assignments;
                 try {
                     assignments = SchedulePlanner.generate(
-                        start, 14, doctors, technicians, existingAssignments
-                    );
+                        start, 14, doctors, technicians, existingAssignments, unavailable
+                        );
                 } catch (IllegalStateException e) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
                 }
@@ -290,6 +305,44 @@ public class DBService {
             );
         }
     }
+
+
+    private Set<SchedulePlanner.Unavailability> loadUnavailability(
+        Connection connection,
+        LocalDate from,
+        LocalDate to
+    ) throws SQLException {
+        String sql = """
+            SELECT r.eid, p.start_date, p.end_date
+            FROM requests r, pto_requests p
+            WHERE p.rid = r.rid AND r.approved = true
+            AND p.start_date <= ? AND p.end_date >= ?
+        """;
+        Set<SchedulePlanner.Unavailability> unavailable = new HashSet<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setDate(1, java.sql.Date.valueOf(to));
+            statement.setDate(2, java.sql.Date.valueOf(from));
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    int eid = rs.getInt("eid");
+
+                    LocalDate first = rs.getDate("start_date").toLocalDate();
+                    LocalDate last = rs.getDate("end_date").toLocalDate();
+
+                    for (LocalDate d = first.isBefore(from) ? from : first;
+                        !d.isAfter(last) && !d.isAfter(to);
+                        d = d.plusDays(1)) {
+                        unavailable.add(new SchedulePlanner.Unavailability(eid, d));
+                    }
+                }
+            }
+        }
+        return unavailable;
+    }
+
+
 
     private List<Integer> loadEmployeeIds(
         Connection connection,
@@ -524,72 +577,192 @@ public class DBService {
 
     }
 
-    public String addPTO(
-        int eid,
-        String reason,
-        LocalDate startDate,
-        LocalDate endDate
-    ){
-
-        //NEED CHECKS FOR CURRENT TIME SO THAT YOU CANT SCHEDULE LESS THAN 3 WEEKS IN ADVANCE
-        if (startDate == null || endDate == null || endDate.isBefore(startDate)) {
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST, "Select valid start and end dates."
-            );
-        }
-        if (!"Vacation".equals(reason) && !"Sick".equals(reason)) {
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST, "Reason must be Vacation or Sick."
-            );
-        }
-
+    // gives start and end date of all used PTO days of specified type in this year
+    private int usedDays(Connection connection, int eid, String reason, int year) throws SQLException {
         String sql = """
-            INSERT INTO requests (eid, approved, request_timestamp)
-            VALUES (?, false, CURRENT_TIMESTAMP)
-            RETURNING rid
+            SELECT p.start_date, p.end_date
+            FROM requests r, pto_requests p
+            WHERE p.rid = r.rid AND r.eid = ? AND r.approved = true AND p.reason = ?
+            AND p.start_date >= ? AND p.start_date < ?
         """;
-        String ptoSql = """
-        INSERT INTO pto_requests (rid, reason, start_date, end_date) 
-        VALUES (?, ?, ?, ?)
+        int used = 0;
+        try (PreparedStatement st = connection.prepareStatement(sql)) {
+            st.setInt(1, eid);
+            st.setString(2, reason);
+            st.setDate(3, java.sql.Date.valueOf(LocalDate.of(year, 1, 1)));
+            st.setDate(4, java.sql.Date.valueOf(LocalDate.of(year + 1, 1, 1)));
+            try (ResultSet rs = st.executeQuery()) {
+                while (rs.next()) {
+                    LocalDate start = rs.getDate("start_date").toLocalDate();
+                    LocalDate end = rs.getDate("end_date").toLocalDate();
+                    used += (int) ChronoUnit.DAYS.between(start, end) + 1;
+                }
+            }
+        }
+        return used;
+    }
+
+    private boolean overlapsApprovedWork(Connection connection, int eid, LocalDate start, LocalDate end) throws SQLException {
+        String sql = """
+            SELECT COUNT(*) AS n
+            FROM requests r, work_requests w 
+            WHERE w.rid = r.rid AND r.eid = ? AND r.approved = true
+            AND w.sdate BETWEEN ? AND ?
         """;
+        try (PreparedStatement st = connection.prepareStatement(sql)) {
+            st.setInt(1, eid);
+            st.setDate(2, java.sql.Date.valueOf(start));
+            st.setDate(3, java.sql.Date.valueOf(end));
+            try (ResultSet rs = st.executeQuery()) {
+                rs.next();
+                return rs.getInt("n") > 0;
+            }
+        }
+    }
+
+    // Tests building schedule for the week to see if we will be short on staff by granting it
+    private String coverageProblem(
+        Connection connection,
+        int eid,
+        LocalDate start,
+        LocalDate end
+    ) throws SQLException {
+        if (end.isBefore(LocalDate.now())) {
+            return null;
+        }
+
+        String sql = "SELECT eid FROM employees WHERE LOWER(etype) = ? ORDER BY eid";
+        List<Integer> doctors = loadEmployeeIds(connection, sql, "doctor");
+        List<Integer> technicians = loadEmployeeIds(connection, sql, "technician");
+
+
+        LocalDate monday = start.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate sunday = end.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+        int dayCount = (int) ChronoUnit.DAYS.between(monday, sunday) + 1;
+
+
+        Set<SchedulePlanner.Unavailability> unavailable =
+            loadUnavailability(connection, monday, sunday);
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            unavailable.add(new SchedulePlanner.Unavailability(eid, d));
+        }
+
+        try {
+            SchedulePlanner.generate(monday, dayCount, doctors, technicians, List.of(), unavailable);
+            return null;
+        } catch (IllegalStateException e) {
+            return "We will be short on staff if we grant your request. " + e.getMessage();
+        }
+    }
+
+
+    // check if an employee already got som time off during this period
+    private boolean overlapsApproved(Connection connection, int eid, LocalDate start, LocalDate end) throws SQLException {
+        String sql = """
+            SELECT COUNT(*)
+            FROM requests r, pto_requests p
+            WHERE p.rid = r.rid AND r.eid = ? AND r.approved = true
+            AND p.start_date <= ? AND p.end_date >= ?
+        """;
+        try (PreparedStatement st = connection.prepareStatement(sql)) {
+            st.setInt(1, eid);
+            st.setDate(2, java.sql.Date.valueOf(end));
+            st.setDate(3, java.sql.Date.valueOf(start));
+            try (ResultSet rs = st.executeQuery()) {
+                rs.next();
+                return rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    public PTODecision addPTO(int eid, String reason, LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null || endDate.isBefore(startDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select valid start and end dates.");
+        }
+        if (!reason.equals("Vacation") && !reason.equals("Sick")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reason must be either Vacation or Sick.");
+        }
+
+        LocalDate today = LocalDate.now();
+        int days = (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        int allowed = reason.equals("Vacation") ? VACATION_DAYS : SICK_DAYS;
 
         try (Connection connection = dataSource.getConnection()) {
-            boolean originalAutoCommit = connection.getAutoCommit();
-            connection.setAutoCommit(false);
+            //denial reason is null until proven otherwise
+            String denialReason = null;
 
+            if (startDate.getYear() != endDate.getYear()) {
+                denialReason = "A request cannot be across two calendar years.";
+            } else if (reason.equals("Vacation") && startDate.isBefore(today.plusWeeks(3))) {
+                denialReason = "Request is too late.";
+            } else if (reason.equals("Sick") && startDate.equals(today)) {
+                denialReason = "A sick day cannot be requested for today.";
+            } else if (overlapsApproved(connection, eid, startDate, endDate)) {
+                denialReason = "These dates conflict with time off you were already granted.";
+            } else if (overlapsApprovedWork(connection, eid, startDate, endDate)) {
+                denialReason = "Your request cannot be granted because it conflicts with a shift request that was already granted.";
+            } 
+            else {
+                int used = usedDays(connection, eid, reason, startDate.getYear());
+                if (used + days > allowed) {
+                    denialReason = "You only have " + (allowed - used) + " " + reason.toLowerCase()
+                        + " day(s) left this year, but requested " + days + ".";
+                }
+            }
+
+            if (denialReason == null) {
+                denialReason = coverageProblem(connection, eid, startDate, endDate);
+            }
+
+            boolean approved = (denialReason == null);
+
+            String requestSql = """
+                INSERT INTO requests (eid, approved, request_timestamp)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                RETURNING rid
+            """;
+            String ptoSql = "INSERT INTO pto_requests (rid, reason, start_date, end_date) VALUES (?, ?, ?, ?)";
+
+            connection.setAutoCommit(false);
             try (
-                PreparedStatement requestStatement = connection.prepareStatement(sql);
+                PreparedStatement requestStatement = connection.prepareStatement(requestSql);
                 PreparedStatement ptoStatement = connection.prepareStatement(ptoSql)
             ) {
                 requestStatement.setInt(1, eid);
-                
-
+                requestStatement.setBoolean(2, approved);
                 int rid;
                 try (ResultSet rs = requestStatement.executeQuery()) {
-                    if (!rs.next()) {
-                        throw new SQLException("No request ID was returned.");
-                    }
+                    rs.next();
                     rid = rs.getInt("rid");
                 }
-
                 ptoStatement.setInt(1, rid);
                 ptoStatement.setString(2, reason);
                 ptoStatement.setDate(3, java.sql.Date.valueOf(startDate));
                 ptoStatement.setDate(4, java.sql.Date.valueOf(endDate));
                 ptoStatement.executeUpdate();
-
                 connection.commit();
-                return "PTO request submitted. Awaiting approval.";
             } catch (SQLException | RuntimeException e) {
                 connection.rollback();
                 throw e;
-            } finally {
-                connection.setAutoCommit(originalAutoCommit);
             }
+
+            if (approved) {
+            boolean inSchedule = !startDate.isAfter(today.plusDays(13)) && !endDate.isBefore(today);
+            String note = "";
+            if (inSchedule) {
+                try {
+                    generateSchedule();
+                    note = " Your schedule has been updated.";
+                } catch (ResponseStatusException e) {
+                    note = " Your time off is saved, but the schedule could not be rebuilt yet: " + e.getReason();
+                }
+            }
+            return new PTODecision(true, "Approved: " + days + " " + reason.toLowerCase() + " day(s)." + note);
+        }
+
+            return new PTODecision(false, denialReason);
         } catch (SQLException e) {
-            throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR, "Unable to submit PTO request.", e
-            );
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to submit PTO request.", e);
         }
     }
 

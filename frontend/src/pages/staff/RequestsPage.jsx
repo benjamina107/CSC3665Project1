@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { Umbrella, Thermometer, CheckCircle2, XCircle, Clock, AlertCircle, CalendarDays, Info } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
-// TODO: Replace mock PTO balances with the employee's real annual usage from the backend.
-// TODO (p.1): Let employees request the dates and times they work.
+// Done: balances load from GET /api/requests/my; handleSubmit posts to /api/requests/pto
+// and shows the server's decision.
+// TODO (p.1): Add a UI for work requests (POST /api/requests/work).
 // Implementation: select a real shift and send its key with the employee ID.
 // Implementation note: map UI 'Sick Day' to pto_requests.reason='Sick'.
 // Notes and saved request history are optional; show the immediate backend denial reason.
@@ -142,42 +143,60 @@ useEffect(() => {
   const days = daysBetween(startDate, endDate)
   const balance = reqType === 'Vacation' ? data.vacation : data.sick
 
-  const handleSubmit = (e) => {
-    // TODO: Await the backend decision rather than auto-approving; show its denial reason,
-    // then refresh the PTO balances and schedule on approval.
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setResult(null)
 
-    const validationError = validateRequest(reqType, startDate, endDate, balance)
-    if (validationError) {
-      setResult({ status: 'Denied', message: validationError })
+    if (!startDate || !endDate) {
+      setResult({ status: 'Denied', message: 'Please select date(s).' })
       return
     }
 
-    // Implementation: send employee ID, request type, and dates/shift to the request API.
-    // For now: optimistically grant and update balance
-    const newRequest = {
-      id: Date.now(),
-      type: reqType,
-      startDate: formatDate(startDate),
-      endDate: formatDate(endDate),
-      days,
-      status: 'Approved',
-      deniedReason: null,
+    try {
+      const reason = reqType === 'Sick Day' ? 'Sick' : 'Vacation'
+
+      const response = await fetch('/api/requests/pto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eid: user.id, reason, startDate, endDate }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => null)
+        throw new Error(err?.message ?? 'Unable to submit request.')
+      }
+
+      const decision = await response.json()
+      const status = decision.approved ? 'Approved' : 'Denied'
+
+      const newRequest = {
+        id: Date.now(),
+        type: reqType,
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+        days,
+        status,
+        deniedReason: decision.approved ? null : decision.message,
+      }
+      setData(prev => ({ ...prev, history: [newRequest, ...prev.history] }))
+
+      const balanceResponse = await fetch(`/api/requests/my?eid=${user.id}`)
+      if (balanceResponse.ok) {
+        const balances = await balanceResponse.json()
+        setData(prev => ({ ...prev, ...balances }))
+      }
+
+      setResult({ status, message: decision.message })
+      if (decision.approved) {
+        setStartDate('')
+        setEndDate('')
+        setNote('')
+      }
+    } catch (err) {
+      setResult({ status: 'Denied', message: err.message })
     }
-
-    setData(prev => ({
-      ...prev,
-      vacation: reqType === 'Vacation' ? { ...prev.vacation, used: prev.vacation.used + days } : prev.vacation,
-      sick:     reqType === 'Sick Day'  ? { ...prev.sick,     used: prev.sick.used     + days } : prev.sick,
-      history: [newRequest, ...prev.history],
-    }))
-
-    setResult({ status: 'Approved', message: `Your ${reqType.toLowerCase()} request for ${formatDate(startDate)}${startDate !== endDate ? ' – ' + formatDate(endDate) : ''} has been approved.` })
-    setStartDate('')
-    setEndDate('')
-    setNote('')
   }
+
 
   if (loading) return <p className="p-8">Loading PTO balances...</p>
   if (error) return <p className="p-8">{error}</p>
