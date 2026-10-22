@@ -3,8 +3,7 @@ import java.time.LocalDate;
 
 public record WorkRequest (
     int eid,
-    LocalDate startDate,
-    LocalDate endDate,
-    boolean approved
+    LocalDate sdate,
+    String block
 )
 {}

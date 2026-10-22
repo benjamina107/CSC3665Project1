@@ -86,12 +86,11 @@ public class ApiController {
     }
 
      @PostMapping("/requests/work")
-    public String addPTO(@RequestBody PTORequest request){
-        return dbService.addPTO(
+    public String addWorkRequest(@RequestBody WorkRequest request){
+        return dbService.addWorkRequest(
             request.eid(),
-            request.reason(),
-            request.startDate(),
-            request.endDate()
+            request.sdate(),
+            request.block()
         );
     }
 }
