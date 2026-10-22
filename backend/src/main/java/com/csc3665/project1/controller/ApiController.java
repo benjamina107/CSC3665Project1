@@ -1,12 +1,8 @@
 package com.csc3665.project1.controller;
 import com.csc3665.project1.service.DBService;
-import com.csc3665.project1.dto.LoginResponse;
-import com.csc3665.project1.dto.ScheduleResponse;
-import com.csc3665.project1.dto.StaffRequest;
-import com.csc3665.project1.dto.StaffResponse;
+import com.csc3665.project1.dto.*;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+
 import java.util.List;
 
 
@@ -72,6 +68,30 @@ public class ApiController {
         @RequestBody SetPasswordRequest request
     ) {
         dbService.setStaffPassword(eid, request.newPassword());
+    }
+
+    @GetMapping("/requests/my")
+    public PTOResponse getPTO(@RequestParam int eid) {
+        return dbService.getPTO(eid);
+    }
+
+    @PostMapping("/requests/pto")
+    public String addPTO(@RequestBody PTORequest request){
+        return dbService.addPTO(
+            request.eid(),
+            request.reason(),
+            request.startDate(),
+            request.endDate()
+        );
+    }
+
+     @PostMapping("/requests/work")
+    public String addWorkRequest(@RequestBody WorkRequest request){
+        return dbService.addWorkRequest(
+            request.eid(),
+            request.sdate(),
+            request.block()
+        );
     }
 }
 

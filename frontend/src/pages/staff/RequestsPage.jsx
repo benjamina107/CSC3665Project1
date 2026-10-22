@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Umbrella, Thermometer, CheckCircle2, XCircle, Clock, AlertCircle, CalendarDays, Info } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -8,13 +8,7 @@ import { useAuth } from '../../context/AuthContext'
 // Implementation note: map UI 'Sick Day' to pto_requests.reason='Sick'.
 // Notes and saved request history are optional; show the immediate backend denial reason.
 
-// ─── Mock time-off data (replace with GET /api/requests/my) ──────────────────
-const MOCK_INITIAL = {
-  vacation: { used: 0, total: 8 },
-  sick:     { used: 0, total: 4 },
-  history: [],
-}
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 // Minimum advance notice: vacation = 21 days, sick = tomorrow (not today)
 function validateRequest(type, startDateStr, endDateStr, balance) {
@@ -102,7 +96,41 @@ function StatusBadge({ status }) {
 
 export default function RequestsPage() {
   const { user } = useAuth()
-  const [data, setData] = useState(MOCK_INITIAL)
+  const [data, setData] = useState({
+  vacation : { used: 0, total : 8 },
+  sick: { used: 0, total: 4 },
+  history:[],
+})
+const[loading, setLoading] = useState(true);
+const [error, setError] = useState(null);
+
+useEffect(() => {
+  if (!user?.id) return
+
+  async function loadPTO() {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch(
+        `/api/requests/my?eid=${user.id}`
+      )
+
+      if (!response.ok) {
+        throw new Error('Unable to load PTO balances.')
+      }
+
+      const balances = await response.json()
+      setData(prev => ({ ...prev, ...balances }))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  loadPTO()
+}, [user?.id])
 
   const [activeTab, setActiveTab] = useState('new')
   const [reqType, setReqType] = useState('Vacation')
@@ -150,6 +178,9 @@ export default function RequestsPage() {
     setEndDate('')
     setNote('')
   }
+
+  if (loading) return <p className="p-8">Loading PTO balances...</p>
+  if (error) return <p className="p-8">{error}</p>
 
   return (
     <div className="p-8">

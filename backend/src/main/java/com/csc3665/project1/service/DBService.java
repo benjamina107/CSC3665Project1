@@ -1,7 +1,5 @@
 package com.csc3665.project1.service;
-import com.csc3665.project1.dto.LoginResponse;
-import com.csc3665.project1.dto.ScheduleEntry;
-import com.csc3665.project1.dto.ScheduleResponse;
+import com.csc3665.project1.dto.*;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
@@ -13,7 +11,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import com.csc3665.project1.dto.StaffResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +29,8 @@ public class DBService {
     // pto_requests.reason uses Sick/Vacation. Persist usage/schedule changes on approval.
 
     private final DataSource dataSource;
+    private static final int VACATION_DAYS = 8;
+    private static final int SICK_DAYS = 4;
 
     public DBService(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -475,4 +474,189 @@ public class DBService {
         );
     }
 }
+
+    public PTOResponse getPTO(int eid){
+        LocalDate yearStart = LocalDate.now().withDayOfYear(1);
+        String sql = """
+        SELECT COALESCE(SUM (p.end_date - p.start_date + 1), 0) as used
+        FROM requests r, pto_requests p
+        WHERE r.eid = ?
+        AND p.rid = r.rid
+        AND p.reason = ?
+        AND r.approved = true
+        AND p.start_date >= ?
+        AND p.end_date < ?
+        """;
+
+        try (
+            Connection connection = dataSource.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql)
+        ){
+            statement.setInt(1, eid);
+            statement.setString(2, "Vacation");
+            statement.setDate(3, java.sql.Date.valueOf(yearStart));
+            statement.setDate(4, java.sql.Date.valueOf(yearStart.plusYears(1)));
+            int vacationUsed;
+            try (ResultSet rs = statement.executeQuery()){
+                rs.next();
+                vacationUsed = rs.getInt("used");
+            }
+
+            statement.setString(2, "Sick");
+            int sickUsed;
+            try (ResultSet rs = statement.executeQuery()){
+                rs.next();
+                sickUsed = rs.getInt("used");
+            }
+            return new PTOResponse(
+            new PTOResponse.PTOBalance(vacationUsed, VACATION_DAYS),
+            new PTOResponse.PTOBalance(sickUsed, SICK_DAYS)
+        );
+        }
+
+        catch(SQLException e){
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unable to load PTO balances.",
+                e
+            );
+        }
+
+    }
+
+    public String addPTO(
+        int eid,
+        String reason,
+        LocalDate startDate,
+        LocalDate endDate
+    ){
+
+        //NEED CHECKS FOR CURRENT TIME SO THAT YOU CANT SCHEDULE LESS THAN 3 WEEKS IN ADVANCE
+        if (startDate == null || endDate == null || endDate.isBefore(startDate)) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "Select valid start and end dates."
+            );
+        }
+        if (!"Vacation".equals(reason) && !"Sick".equals(reason)) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "Reason must be Vacation or Sick."
+            );
+        }
+
+        String sql = """
+            INSERT INTO requests (eid, approved, request_timestamp)
+            VALUES (?, false, CURRENT_TIMESTAMP)
+            RETURNING rid
+        """;
+        String ptoSql = """
+        INSERT INTO pto_requests (rid, reason, start_date, end_date) 
+        VALUES (?, ?, ?, ?)
+        """;
+
+        try (Connection connection = dataSource.getConnection()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+
+            try (
+                PreparedStatement requestStatement = connection.prepareStatement(sql);
+                PreparedStatement ptoStatement = connection.prepareStatement(ptoSql)
+            ) {
+                requestStatement.setInt(1, eid);
+                
+
+                int rid;
+                try (ResultSet rs = requestStatement.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new SQLException("No request ID was returned.");
+                    }
+                    rid = rs.getInt("rid");
+                }
+
+                ptoStatement.setInt(1, rid);
+                ptoStatement.setString(2, reason);
+                ptoStatement.setDate(3, java.sql.Date.valueOf(startDate));
+                ptoStatement.setDate(4, java.sql.Date.valueOf(endDate));
+                ptoStatement.executeUpdate();
+
+                connection.commit();
+                return "PTO request submitted. Awaiting approval.";
+            } catch (SQLException | RuntimeException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+            }
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, "Unable to submit PTO request.", e
+            );
+        }
+    }
+
+    public String addWorkRequest(
+        int eid,
+        LocalDate sDate,
+        String block
+    ){
+        if (sDate == null || block == null || block.isBlank()) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "Select a shift date and block."
+            );
+        }
+
+        String shiftSql = "SELECT * FROM shifts WHERE sdate = ? AND block = ?";
+        String requestSql = """
+            INSERT INTO requests (eid, approved, request_timestamp)
+            VALUES (?, false, CURRENT_TIMESTAMP)
+            RETURNING rid
+            """;
+        String workSql = "INSERT INTO work_requests (rid, sdate, block) VALUES (?, ?, ?)";
+
+        try (Connection connection = dataSource.getConnection()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+
+            try (
+                PreparedStatement shiftStatement = connection.prepareStatement(shiftSql);
+                PreparedStatement requestStatement = connection.prepareStatement(requestSql);
+                PreparedStatement workStatement = connection.prepareStatement(workSql)
+            ) {
+                shiftStatement.setDate(1, java.sql.Date.valueOf(sDate));
+                shiftStatement.setString(2, block);
+                try (ResultSet rs = shiftStatement.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new ResponseStatusException(
+                            HttpStatus.NOT_FOUND, "The selected shift does not exist."
+                        );
+                    }
+                }
+
+                requestStatement.setInt(1, eid);
+                int rid;
+                try (ResultSet rs = requestStatement.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new SQLException("No request ID was returned.");
+                    }
+                    rid = rs.getInt("rid");
+                }
+
+                workStatement.setInt(1, rid);
+                workStatement.setDate(2, java.sql.Date.valueOf(sDate));
+                workStatement.setString(3, block);
+                workStatement.executeUpdate();
+
+                connection.commit();
+                return "Work request submitted. Awaiting approval.";
+            } catch (SQLException | RuntimeException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+            }
+        } catch (SQLException e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, "Unable to submit work request.", e
+            );
+        }
+    }
 }
